@@ -52,7 +52,7 @@ void parse(char* input)
 
     // 多分Structかなんかで構造体でファイル情報渡してからParseした方が良さそうな気がする
     char* hBuf = new char[5];
-    char* pBuf = new char[50000];
+    char* pBuf = new char[50000]; // 最終シーク位置の予測が最後のヘッダー
 
     std::intmax_t size = file_size(input);
 
@@ -62,9 +62,9 @@ void parse(char* input)
         return;
     }
 
-    source.seekg(0);
-    while (source.tellg() < size) {
-        std::intmax_t  current = source.tellg();
+    std::intmax_t  current = source.tellg();
+    while (current < size) {
+        source.seekg(current);
         source.read(hBuf, 5);
         //if (!is_syncHeader(hBuf[0])) {
         if (!(hBuf[0] == 0x7F)) {
@@ -89,7 +89,6 @@ void parse(char* input)
             nullTLVPacket += 1;
             tlvPacketCount[packetType]++;
             tlvPacketTotalCount++;
-            continue;
         }
         else {
             std::cout << "TLV Packet packetType:" << packetType << std::endl;
@@ -159,8 +158,9 @@ void parse(char* input)
                 mMTPacketCount[MmtpHeader.packetId] += 1;
             }
             //continue;
-        }
-        else {
+        } else if (packetType == 0xFE) {
+        } else if (packetType == 0xFF) {
+        } else {
             std::cout << "unknownTLVPacketType: 0x" << packetType << std::endl;
 
             unknownTLVPacketType += 1;
@@ -169,8 +169,11 @@ void parse(char* input)
         current = current + payloadSize;
         source.seekg(current);
         std::cout << "\r" << "progress:" << current / 1024 << " kBytes.";
+        //std::cout << "TLV Packet tell:" << source.tellg() << std::endl;
 
-        //std::cout << "TLV Packet payloadSize:" << payloadSize << std::endl;
+        //std::cout << "TLV Packet payloadSize:" << current << std::endl;
+        //std::cout << "Size:" << size << std::endl;
+
         //std::cout << "TLV Packet Type :" << packetType << std::endl;
 
         //std::cout << "TLV Packet Total:" << tlvPacketTotalCount << std::endl;

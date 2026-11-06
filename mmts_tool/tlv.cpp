@@ -1,6 +1,7 @@
+#include <cstdint>
 // TLVパケットの0x1を応答
 int parse_packetType(char* packet) {
-	return (int)packet[0x1];
+	return ((unsigned char*)packet)[0x1];
 }
 // TLVパケットのPayloadの長さを応答
 int parse_tlvPayloadtSize(char* packet) {

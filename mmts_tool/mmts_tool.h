@@ -4,7 +4,7 @@ struct _iPv6Header parse_ipv6Packet(struct _iPv6Header Header,  char* packet, in
 struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket IpPacket, char* packet, int offset);
 struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int offset);
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset);
-bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t* mMTPacketDropCounter);
+bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t mMTPacketDropCounter);
 
 struct _source {
 	char* fileName;
@@ -29,7 +29,7 @@ struct _mmtpHeader {
 	int version;
 	bool packetCounterFlag;
 	int fECType;
-	int payloadId;
+	int payloadType;
 	int packetId;
 	int packetSequenceNumber;
 };

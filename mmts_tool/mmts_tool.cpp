@@ -44,20 +44,31 @@ void parse(char* input)
     int tlvPacketTotalCount = 0;
     int tlvPacketResyncCount = 0;
 
+    std::uintmax_t* iPv6MMTPacketCount = new std::uintmax_t[0xFFFF]{};
     std::uintmax_t* mMTPacketCount = new std::uintmax_t[0xFFFF]{};
-    std::intmax_t* mMTPacketLastSequenceNumber = new std::intmax_t[0xFFFF]{-1}; // 0になるけど、どうする？ストリームとしては0ではないはずだよ？// 後でtsselectみにいこう
+
+    std::intmax_t* mMTPacketLastSequenceNumber = new std::intmax_t[0xFFFF]{};
+    for (int i = 0; i < 0xFFFF; i++) {
+        mMTPacketLastSequenceNumber[i] = -1;
+    }
+    
+    std::uintmax_t* iPv6MMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
     std::uintmax_t* mMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
+
+    std::uintmax_t* iPv6MMTPacketLastSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
+    std::uintmax_t* contextIdSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
+
     std::intmax_t unknownTLVPacketType = 0;
     std::intmax_t nullTLVPacket = 0;
 
     // 多分Structかなんかで構造体でファイル情報渡してからParseした方が良さそうな気がする
     char* hBuf = new char[2000];
-
-    std::intmax_t size = file_size(input);
-
-    std::ifstream source(input, std::ios::in | std::ios::binary);
+    std::filesystem::path Input = input;
+    std::intmax_t size = file_size(Input);
+    std::cout << "filesize: " << size << " bytes" << std::endl;
+    std::ifstream source(Input, std::ios::in | std::ios::binary);
     if (!source) {
-        std::cout << "Can not open source: " << input;
+        std::cout << "Can not open source: " << Input;
         return;
     }
 
@@ -76,9 +87,10 @@ void parse(char* input)
         source.read(hBuf, 2000);
         //if (!is_syncHeader(hBuf[0])) {
         if (!(hBuf[0] == 0x7F)) {
-
+            std::cout << "\rResync TLV Header: " << current << " bytes";
             source.seekg(current + 1);
             tlvPacketResyncCount++;
+            current++;
             continue;
         }
         packetType = ((unsigned char*)hBuf)[0x1];/* parse_packetType(hBuf)*/;
@@ -94,12 +106,10 @@ void parse(char* input)
             tlvPacketResyncCount++;
             continue;
         }
-        current = current + 4; //たまたまSyncHeaderが生きてるだけの可能性を考慮してここで判定する
         //parse_tlvPayloadtSize(hBuf);
         payloadSize = parse_tlvPayloadtSize(hBuf);
 
         //std::cout << "TLV Packet payloadSize2:" << payloadSize << std::endl;
-        current = current + payloadSize;
         //source.read(hBuf, 4 + payloadSize);
 
         if (packetType == 0x2) {
@@ -120,12 +130,12 @@ void parse(char* input)
             //std::cout << "PID: " << MmtpHeader.packetId << "  Detect version : " << MmtpHeader.version << std::endl;
 
             // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
-            if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, mMTPacketDropCounter) == true) {
-                mMTPacketDropCounter[MmtpHeader.packetId] += 1;
+            if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
+                iPv6MMTPacketDropCounter[MmtpHeader.packetId] += 1;
                 //std::cout << "PID: " << MmtpHeader.packetId << "Detect Packet Drop Address : " << current << std::endl;
             }
-            mMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
-            mMTPacketCount[MmtpHeader.packetId] += 1;
+            iPv6MMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
+            iPv6MMTPacketCount[MmtpHeader.packetId] += 1;
 
         //    // diff取ったときに未設定の値だった場合はどうこうとか？
 
@@ -133,31 +143,54 @@ void parse(char* input)
         else if (packetType == 0x3) {
             compressedIpHeader = parse_compressedIpPacket(compressedIpHeader, hBuf, 4 + 0);
 
+
             if (compressedIpHeader.headerType == 0x61) {
 
-                MmtpHeader = parseMmtpHeader(hBuf, 4 + 4);
-                //std::cout << "PID: " << MmtpHeader.packetId << "  Detect version : " << MmtpHeader.version << std::endl;
+                MmtpHeader = parseMmtpHeader(hBuf, 4 + 3);
+                //std::cout << "PID: " << MmtpHeader.packetId << "  Detect versio2n : " << MmtpHeader.version << std::endl;
 
                 // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
-                if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, mMTPacketDropCounter) == true) {
+                if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
                     mMTPacketDropCounter[MmtpHeader.packetId] += 1;
-                    //std::cout << "PID: " << MmtpHeader.packetId << "Detect Packet Drop Address : " << current << std::endl;
+                    std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop Address : " << current << std::endl;
 
 
                 }
                 mMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
                 mMTPacketCount[MmtpHeader.packetId] += 1;
             }
+            else if (compressedIpHeader.headerType == 0x60) {
+                MmtpHeader = parseMmtpHeader(hBuf, 4 + 3 + 38 + 4);
+
+                // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
+                if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
+                    mMTPacketDropCounter[MmtpHeader.packetId] += 1;
+                    std::cout << "PID: 0x" << MmtpHeader.packetId <<  " Drop Address : " << current << "bytes" << std::endl;
+
+
+                }
+                mMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
+                mMTPacketCount[MmtpHeader.packetId] += 1;
+            }
+            else {
+                std::cout << "unknowncompressedIpHeaderPacketType: 0x" << std::hex <<compressedIpHeader.headerType << std::dec << std::endl;
+
+            }
             //continue;
         } else if (packetType == 0xFE) {
         } else if (packetType == 0xFF) {
         } else {
             std::cout << "unknownTLVPacketType: 0x" << packetType << std::endl;
-
+            std::cout << "Resync" << std::endl;
+            current++;
             unknownTLVPacketType += 1;
+            continue;
         }
+        current = current + 4; //たまたまSyncHeaderが生きてるだけの可能性を考慮してここで判定する
+        current = current + payloadSize;
+
         if (tlvPacketTotalCount % 100 == 0) {
-            std::cout << "\r" << "progress:" << current / 1024 << " kBytes.";
+            std::cout <<  "progress:" << current / 1024  << " kBytes." << "\r";
         }
         //std::cout << "TLV Packet tell:" << source.tellg() << std::endl;
 
@@ -172,33 +205,30 @@ void parse(char* input)
         // PayloadSize分次回シークしたい。
         // parse_packetTypeの応答値で配列をアレして
     }
-    std::cout << "\n\n\n" << std::endl;
     std::cout << "TLV Packet Total:" << tlvPacketTotalCount << std::endl;
     std::cout << "TLV Packet Resync Total:" << tlvPacketResyncCount << std::endl;
-    std::cout << "unknownTLVPacketType Total:" << unknownTLVPacketType << std::endl;
+    std::cout << "TLV Null Packet Total:" << tlvPacketCount[0xFF] << "\n" << std::endl;
+    std::cout << "TLV Unknown Packet Total:" << unknownTLVPacketType << "\n"  << std::endl;
+
 
     for (int i = 0; i < 0xFF; i++) {
         if (tlvPacketCount[i] != 0) {
-            std::cout << "TLV Packet Type 0x" << std::setw(2) << std::setfill('0') << std::hex << i << std::dec << ": " << tlvPacketCount[i] << " packets" << std::endl;
+            std::cout << "TLV Packet Type 0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << i << std::nouppercase << std::dec << ": " << tlvPacketCount[i] << " packets" << std::endl;
         }
     }
-    std::cout << "\n\nMMT Packets"  << std::endl;
+    std::cout << "\nCompressed IP Header MMT Packets"  << std::endl;
 
     for (int i = 0; i < 0xFFFF; i++) {
         if (mMTPacketCount[i] != 0) {
-            std::cout << "0x" << std::setw(4) << std::setfill('0') << std::hex <<  i << "\tTotal = " << std::dec << mMTPacketCount[i] << " packets" <<
-            "\tDrops = " << mMTPacketDropCounter[i] << " packets" << std::endl;
+            std::cout << "\tPacketId: 0x" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex <<  i << "\tTotal = " << std::nouppercase << std::dec << mMTPacketCount[i] << " packets" <<
+            "\tDrop = " << mMTPacketDropCounter[i] << " packets" << std::endl;
 
         }
     }
     return;
 }
 
-// 今はvoidで返しているが、ほしいデータはstructで応答できると良さそう（ペイロード区間などが応答出来れば切り出さなくても処理できると思う）
-// 戻した際にオフセットを要求元で掛けてあげれば、算出できる
-// ライブラリとしては元データのポインタと始点を渡してあげられるとペイロード切り出さなくて良いんじゃないのかなと思う
-
-bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t* mMTPacketDropCounter) {
+bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t mMTPacketDropCounter) {
     //mMTPacketDropCounter[Header.packetId];
     if (mMTPacketLastSequenceNumber[Header.packetId] + 1 == (Header.packetSequenceNumber)) {
         return false;
@@ -247,8 +277,7 @@ struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket I
 
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
     _mmtpHeader MMTPHeader {};
-    MMTPHeader.version = (((unsigned char*)packet)[offset + 0] >> 6) & 0xFF;
-    // counterはPacketIDを区別しないでMMTP通しでの数字っぽい。
+    MMTPHeader.version = (((unsigned char*)packet)[offset + 0] >> 6) & 0x3;
     MMTPHeader.packetCounterFlag = (((unsigned char*)packet)[offset + 0] >> 5) & 0x01;
     MMTPHeader.payloadType = (((unsigned char*)packet)[offset + 1] >> 2) & 0x1F; 
     MMTPHeader.packetId = ((((unsigned char*)packet)[offset + 2] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 3];
@@ -257,13 +286,8 @@ struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
                                       ((((unsigned char*)packet)[offset + 10] & 0xFF) << 8) |
                                       ((unsigned char*)packet)[offset + 11];
 
-    // structでヘッダーを応答してあげる
-
     return MMTPHeader;
 }
-// 効率的ではないが、可読性のため一部の関数ではペイロードを切り出してから対応するようにする
-// 具体的には↑の応答形式が思いついてなかった頃に書いてた関数
-// とはいうものの多分全体からこっからここまでって感じで切り出すって思想の方が分かりやすい気もする
 char* getPayload(char* packet, int a, int size) {
     char* newPacket = new char[size];
     for (int i = 0; i < size ; i++) {

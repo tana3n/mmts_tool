@@ -85,7 +85,6 @@ void parse(char* input)
     while (current < size) {
         source.seekg(current);
         source.read(hBuf, 2000);
-        //if (!is_syncHeader(hBuf[0])) {
         if (!(hBuf[0] == 0x7F)) {
             std::cout << "\rResync TLV Header: " << current << " bytes";
             source.seekg(current + 1);
@@ -115,8 +114,6 @@ void parse(char* input)
         if (packetType == 0x2) {
             IPv6Header = parse_ipv6Packet(IPv6Header, hBuf, 4);
 
-            // UDPHeaderを何とかしてPayloadを触れるようにする
-            //char* udpPacket = getPayload(pBuf, 40, v6Payload); // 256+64 = 320bit
             // nextHeaderがUDPだったらそのまま処理する
             UDPHeader = getUDPHeader(UDPHeader, hBuf, 4 + 40);
             UDPPayloadEnd = UDPHeader.dataLength + 40;
@@ -127,17 +124,13 @@ void parse(char* input)
                 // v6Header(40) + v6Payload(56bytes) = 96bytes
             }
             MmtpHeader =  parseMmtpHeader(hBuf, 4 + 40 + 8);
-            //std::cout << "PID: " << MmtpHeader.packetId << "  Detect version : " << MmtpHeader.version << std::endl;
 
-            // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
             if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
                 iPv6MMTPacketDropCounter[MmtpHeader.packetId] += 1;
                 //std::cout << "PID: " << MmtpHeader.packetId << "Detect Packet Drop Address : " << current << std::endl;
             }
             iPv6MMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
             iPv6MMTPacketCount[MmtpHeader.packetId] += 1;
-
-        //    // diff取ったときに未設定の値だった場合はどうこうとか？
 
         }
         else if (packetType == 0x3) {
@@ -149,7 +142,6 @@ void parse(char* input)
                 MmtpHeader = parseMmtpHeader(hBuf, 4 + 3);
                 //std::cout << "PID: " << MmtpHeader.packetId << "  Detect versio2n : " << MmtpHeader.version << std::endl;
 
-                // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
                 if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
                     mMTPacketDropCounter[MmtpHeader.packetId] += 1;
                     std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop Address : " << current << std::endl;
@@ -162,7 +154,6 @@ void parse(char* input)
             else if (compressedIpHeader.headerType == 0x60) {
                 MmtpHeader = parseMmtpHeader(hBuf, 4 + 3 + 38 + 4);
 
-                // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
                 if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
                     mMTPacketDropCounter[MmtpHeader.packetId] += 1;
                     std::cout << "PID: 0x" << MmtpHeader.packetId <<  " Drop Address : " << current << "bytes" << std::endl;
@@ -192,18 +183,7 @@ void parse(char* input)
         if (tlvPacketTotalCount % 100 == 0) {
             std::cout <<  "progress:" << current / 1024  << " kBytes." << "\r";
         }
-        //std::cout << "TLV Packet tell:" << source.tellg() << std::endl;
 
-        //std::cout << "TLV Packet payloadSize:" << current << std::endl;
-        //std::cout << "Size:" << size << std::endl;
-
-        //std::cout << "TLV Packet Type :" << packetType << std::endl;
-
-        //std::cout << "TLV Packet Total:" << tlvPacketTotalCount << std::endl;
-        //std::cout << "TLV Packet Resync Total:" << tlvPacketResyncCount << std::endl;
-
-        // PayloadSize分次回シークしたい。
-        // parse_packetTypeの応答値で配列をアレして
     }
     std::cout << "TLV Packet Total:" << tlvPacketTotalCount << std::endl;
     std::cout << "TLV Packet Resync Total:" << tlvPacketResyncCount << std::endl;
@@ -229,7 +209,6 @@ void parse(char* input)
 }
 
 bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t mMTPacketDropCounter) {
-    //mMTPacketDropCounter[Header.packetId];
     if (mMTPacketLastSequenceNumber[Header.packetId] + 1 == (Header.packetSequenceNumber)) {
         return false;
     }
@@ -304,35 +283,10 @@ struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int of
     return UDPHeader;
 }
 
-// v6のヘッダーから始まるデータ渡して可読な値にする
-//char parse_ipv6_srcip(char* packet) {
-//    //std::cout << "IPv6 Packet Src:" << ((unsigned char*)packet)[8] <<
-//    //    ((unsigned char*)packet)[9] << 
-//    //    ((unsigned char*)packet)[10] << 
-//    //    ((unsigned char*)packet)[11] << 
-//    //    ((unsigned char*)packet)[12] << 
-//    //    ((unsigned char*)packet)[13] << 
-//    //    ((unsigned char*)packet)[14] <<
-//    //    ((unsigned char*)packet)[15] <<
-//    //    ((unsigned char*)packet)[16] <<
-//    //    ((unsigned char*)packet)[17] <<
-//    //    ((unsigned char*)packet)[18] <<
-//    //    ((unsigned char*)packet)[19] <<
-//    //    ((unsigned char*)packet)[20] <<
-//    //    ((unsigned char*)packet)[21] <<
-//    //    ((unsigned char*)packet)[22] <<
-//    //    ((unsigned char*)packet)[23] <<
-//    //    std::endl; 
-//}
+
 void usage() {
-    std::cout << "Usage: loas-tools [options] <input> \n";
+    std::cout << "Usage: mmts-tools [options] <input> \n";
     std::cout << "Options:\n";
-    std::cout << "-D\tDecode mode(FakeWave to latm)\n";
-    std::cout << "-F\tFake mode (latm to FakeWave)\n\n";
-    std::cout << "--bitdepth\tSelecting WaveHeader blocksize (for Fake mode)\n\t8:\t8bit\n\t16:\t16bit\n\t24:\t24bit(default)\n";
-
-    std::cout << "--overwrite\tIf it exists in the output destination, it will be overwritten\n";
-    std::cout << "--exact\tOutputs the deviation correction information of the start point(This is vaild for matroska)\n";
-
+    std::cout << "\n\n";
     return;
 }

@@ -40,19 +40,18 @@ void parse(char* input)
 
     */
 
-    std::uintmax_t tlvPacketCount[0x100] = {};
+    std::uintmax_t* tlvPacketCount = new std::uintmax_t[0x100]{};
     int tlvPacketTotalCount = 0;
     int tlvPacketResyncCount = 0;
 
-    std::uintmax_t mMTPacketCount[0xFFFF] = {};
-    std::intmax_t mMTPacketLastSequenceNumber[0x0FFF] = {-1}; // 0になるけど、どうする？ストリームとしては0ではないはずだよ？// 後でtsselectみにいこう
-    std::uintmax_t mMTPacketDropCounter[0x0FFF] = {};
+    std::uintmax_t* mMTPacketCount = new std::uintmax_t[0xFFFF]{};
+    std::intmax_t* mMTPacketLastSequenceNumber = new std::intmax_t[0xFFFF]{-1}; // 0になるけど、どうする？ストリームとしては0ではないはずだよ？// 後でtsselectみにいこう
+    std::uintmax_t* mMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
     std::intmax_t unknownTLVPacketType = 0;
     std::intmax_t nullTLVPacket = 0;
 
     // 多分Structかなんかで構造体でファイル情報渡してからParseした方が良さそうな気がする
-    char* hBuf = new char[5];
-    char* pBuf = new char[50000]; // 最終シーク位置の予測が最後のヘッダー
+    char* hBuf = new char[2000];
 
     std::intmax_t size = file_size(input);
 
@@ -62,10 +61,19 @@ void parse(char* input)
         return;
     }
 
+    int packetType = 0xFD;
+    std::uintmax_t payloadSize = 0;
     std::intmax_t  current = source.tellg();
+    int UDPPayloadEnd = 0;
+
+    struct _iPv6Header IPv6Header {};
+    struct _udpHeader UDPHeader {};
+    struct _mmtpHeader MmtpHeader {};
+    struct _compressedIpPacket compressedIpHeader {};
+
     while (current < size) {
         source.seekg(current);
-        source.read(hBuf, 5);
+        source.read(hBuf, 2000);
         //if (!is_syncHeader(hBuf[0])) {
         if (!(hBuf[0] == 0x7F)) {
 
@@ -73,65 +81,48 @@ void parse(char* input)
             tlvPacketResyncCount++;
             continue;
         }
-        int packetType = ((unsigned char*)hBuf)[0x1];/* parse_packetType(hBuf)*/;
+        packetType = ((unsigned char*)hBuf)[0x1];/* parse_packetType(hBuf)*/;
         //std::cout << "TLV Packet packetType hbuf[1]:"  << hBuf[1] << std::endl;
-        //std::cout << "TLV Packet packetType a:" << std::hex << packetType << std::endl;
+        //std::cout << "TLV Packet packetType a:" << std::hex << packetType << std::endl;      
 
-        
-
-        if (packetType < 0xFF) {
-
+        if (packetType <= 0xFF) {
             tlvPacketCount[packetType]++;
             tlvPacketTotalCount++;
-        }
-        else if (packetType == 0xFF) {
-
-            nullTLVPacket += 1;
-            tlvPacketCount[packetType]++;
-            tlvPacketTotalCount++;
-        }
-        else {
+        } else {
             std::cout << "TLV Packet packetType:" << packetType << std::endl;
-            source.seekg(current + 1);
+            current++;
             tlvPacketResyncCount++;
             continue;
         }
+        current = current + 4; //たまたまSyncHeaderが生きてるだけの可能性を考慮してここで判定する
         //parse_tlvPayloadtSize(hBuf);
-        std::uintmax_t payloadSize = parse_tlvPayloadtSize(hBuf);
+        payloadSize = parse_tlvPayloadtSize(hBuf);
+
         //std::cout << "TLV Packet payloadSize2:" << payloadSize << std::endl;
-        current = current + 4;
-        source.seekg(current);
+        current = current + payloadSize;
+        //source.read(hBuf, 4 + payloadSize);
 
-        // MMT / NTPをここで何とかする
-        if (payloadSize <= 50000) {
-            source.read(pBuf, payloadSize);
-        }
-        else
-        {
-            std::cout << "TLV Payload buffer overflow : " << payloadSize << std::endl;
-            std::cout << "Current Address : " << current << std::endl;
-
-            break;
-        }
-        
         if (packetType == 0x2) {
-            //int v6Payload = parse_ipv6Packet(pBuf);
+            IPv6Header = parse_ipv6Packet(IPv6Header, hBuf, 4);
 
             // UDPHeaderを何とかしてPayloadを触れるようにする
             //char* udpPacket = getPayload(pBuf, 40, v6Payload); // 256+64 = 320bit
             // nextHeaderがUDPだったらそのまま処理する
-            struct _udpHeader UDPHeader = getUDPHeader(pBuf, 40);
-            int UDPPayloadEnd = UDPHeader.dataLength + 40 + 8;
-
-            struct _mmtpHeader MmtpHeader =  parseMmtpHeader(pBuf, 48);
+            UDPHeader = getUDPHeader(UDPHeader, hBuf, 4 + 40);
+            UDPPayloadEnd = UDPHeader.dataLength + 40;
+            if (!(payloadSize == UDPPayloadEnd)) {
+                std::cout << "TLV Payload Size: " << payloadSize << "  UDP Payload + 40 + 8 : " << UDPPayloadEnd 
+                    << std::endl;
+                // TLV(4Byte) + IPv6Header(40Byte) + UDP(8Byte) + UDPPayload(?) = TLV(4Byte) + TLVPayload(96Byte)
+                // v6Header(40) + v6Payload(56bytes) = 96bytes
+            }
+            MmtpHeader =  parseMmtpHeader(hBuf, 4 + 40 + 8);
             //std::cout << "PID: " << MmtpHeader.packetId << "  Detect version : " << MmtpHeader.version << std::endl;
 
             // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
             if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, mMTPacketDropCounter) == true) {
                 mMTPacketDropCounter[MmtpHeader.packetId] += 1;
                 //std::cout << "PID: " << MmtpHeader.packetId << "Detect Packet Drop Address : " << current << std::endl;
-
-
             }
             mMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
             mMTPacketCount[MmtpHeader.packetId] += 1;
@@ -140,11 +131,11 @@ void parse(char* input)
 
         }
         else if (packetType == 0x3) {
-            struct _compressedIpPacket compressedIpHeader = parse_compressedIpPacket(pBuf, 0);
+            compressedIpHeader = parse_compressedIpPacket(compressedIpHeader, hBuf, 4 + 0);
 
             if (compressedIpHeader.headerType == 0x61) {
 
-                struct _mmtpHeader MmtpHeader = parseMmtpHeader(pBuf, 48);
+                MmtpHeader = parseMmtpHeader(hBuf, 4 + 4);
                 //std::cout << "PID: " << MmtpHeader.packetId << "  Detect version : " << MmtpHeader.version << std::endl;
 
                 // 帰ってきたHeaderからPIDと前回とのカウンターを比較して何とかする。初回はどうするかなあ……
@@ -165,10 +156,9 @@ void parse(char* input)
 
             unknownTLVPacketType += 1;
         }
-
-        current = current + payloadSize;
-        source.seekg(current);
-        std::cout << "\r" << "progress:" << current / 1024 << " kBytes.";
+        if (tlvPacketTotalCount % 100 == 0) {
+            std::cout << "\r" << "progress:" << current / 1024 << " kBytes.";
+        }
         //std::cout << "TLV Packet tell:" << source.tellg() << std::endl;
 
         //std::cout << "TLV Packet payloadSize:" << current << std::endl;
@@ -189,7 +179,7 @@ void parse(char* input)
 
     for (int i = 0; i < 0xFF; i++) {
         if (tlvPacketCount[i] != 0) {
-            std::cout << "TLV Packet Type 0x" << std::setw(4) << std::setfill('0') <<  i << ": " << tlvPacketCount[i] << " packets" << std::endl;
+            std::cout << "TLV Packet Type 0x" << std::setw(2) << std::setfill('0') << std::hex << i << std::dec << ": " << tlvPacketCount[i] << " packets" << std::endl;
         }
     }
     std::cout << "\n\nMMT Packets"  << std::endl;
@@ -201,15 +191,6 @@ void parse(char* input)
 
         }
     }
-    /*
-    IP Packet
-    NTP+MMT?
-    CID 12b
-    Seq 4b(確かに連続してる）
-    CID Header Type 0x61（v6の圧縮ヘッダーなし）
-    ペイロード
-
-    */
     return;
 }
 
@@ -218,12 +199,11 @@ void parse(char* input)
 // ライブラリとしては元データのポインタと始点を渡してあげられるとペイロード切り出さなくて良いんじゃないのかなと思う
 
 bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t* mMTPacketDropCounter) {
-    int PID = Header.packetId;
-    mMTPacketDropCounter[PID];
-    if (mMTPacketLastSequenceNumber[PID] == (Header.packetSequenceNumber + 1)) {
+    //mMTPacketDropCounter[Header.packetId];
+    if (mMTPacketLastSequenceNumber[Header.packetId] + 1 == (Header.packetSequenceNumber)) {
         return false;
     }
-    else if(Header.packetSequenceNumber == -1){
+    else if(mMTPacketLastSequenceNumber[Header.packetId] == (-1)) {
         return false; // 初期値の-1だと評価不能なため
     }
     else {
@@ -232,23 +212,21 @@ bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceN
 
 }
 
-int parse_ipv6Packet(char* packet) {
-
+struct _iPv6Header  parse_ipv6Packet(struct _iPv6Header Header, char* packet, int offset) {
     // v6の固定長区間を何とかする
-    std::uintmax_t Version =  (((unsigned char*)packet)[0] >> 4 )& 0xFF;
-    //std::cout << "IPv6 Packet Version:" << Version << std::endl;
-    int v6Payload = (((((unsigned char*)packet)[4]) & 0x1F) << 8) | ((unsigned char*)packet)[5];
-    //std::cout << "IPv6 Packet Payload length:" << v6Payload << std::endl;
-    int NextHeader = ((unsigned char*)packet)[6];
-    //std::cout << "IPv6 Packet NextHeader:" << NextHeader << std::endl; // (0x11)UDP
+    Header.version =  (((unsigned char*)packet)[0 + offset] >> 4 )& 0xF;
+    //std::cout << "IPv6 Packet Version:" << Header.version << std::endl;
+    Header.payloadLength = (((((unsigned char*)packet)[offset + 4]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + 5];
+    //std::cout << "IPv6 Packet Payload length:" << Header.payloadLength << std::endl;
+    Header.nextHeader = ((unsigned char*)packet)[offset + 6];
+    //std::cout << "IPv6 Packet NextHeader:" << Header.nextHeader << std::endl; // (0x11)UDP
     
-    return v6Payload;
+    return Header;
    
 
 }
 
-struct _compressedIpPacket parse_compressedIpPacket(char* packet, int offset) {
-    _compressedIpPacket IpPacket {};
+struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket IpPacket,  char* packet, int offset) {
     IpPacket.contentId = ((((unsigned char*)packet)[offset + 0] & 0x1F) << 8) | ((unsigned char*)packet)[offset + 1];
     //std::cout << "ComppressedIp ContentId:" << IpPacket.contentId << std::endl;
     IpPacket.packetSequenceNumber = (((unsigned char*)packet)[offset + 1] ) & 0x0F;
@@ -272,8 +250,12 @@ struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
     MMTPHeader.version = (((unsigned char*)packet)[offset + 0] >> 6) & 0xFF;
     // counterはPacketIDを区別しないでMMTP通しでの数字っぽい。
     MMTPHeader.packetCounterFlag = (((unsigned char*)packet)[offset + 0] >> 5) & 0x01;
-    MMTPHeader.packetId = (((unsigned char*)packet)[offset + 1] >> 2) & 0x1F;
-
+    MMTPHeader.payloadType = (((unsigned char*)packet)[offset + 1] >> 2) & 0x1F; 
+    MMTPHeader.packetId = ((((unsigned char*)packet)[offset + 2] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 3];
+    MMTPHeader.packetSequenceNumber = ((((unsigned char*)packet)[offset + 8] & 0xFF) << 24) | 
+                                      ((((unsigned char*)packet)[offset + 9] & 0xFF) << 16) |
+                                      ((((unsigned char*)packet)[offset + 10] & 0xFF) << 8) |
+                                      ((unsigned char*)packet)[offset + 11];
 
     // structでヘッダーを応答してあげる
 
@@ -290,12 +272,11 @@ char* getPayload(char* packet, int a, int size) {
     return newPacket;
 }
 
-struct _udpHeader getUDPHeader(char* packet, int offset) {
-    _udpHeader UDPHeader {};
-    UDPHeader.srcPort = (((((unsigned char*)packet)[offset + 0]) & 0x1F) << 8) | ((unsigned char*)packet)[offset + 1];
-    UDPHeader.dstPort = (((((unsigned char*)packet)[offset + 2]) & 0x1F) << 8) | ((unsigned char*)packet)[offset + 3];
-    UDPHeader.dataLength = (((((unsigned char*)packet)[offset + 4]) & 0x1F) << 8) | ((unsigned char*)packet)[offset + 5];
-    UDPHeader.checksum = (((((unsigned char*)packet)[offset + 6]) & 0x1F) << 8) | ((unsigned char*)packet)[offset + 7];
+struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int offset) {
+    UDPHeader.srcPort = (((((unsigned char*)packet)[offset + 0]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + 1];
+    UDPHeader.dstPort = (((((unsigned char*)packet)[offset + 2]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + 3];
+    UDPHeader.dataLength = (((((unsigned char*)packet)[offset + 4]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + 5];
+    UDPHeader.checksum = (((((unsigned char*)packet)[offset + 6]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + 7];
     return UDPHeader;
 }
 

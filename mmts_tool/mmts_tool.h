@@ -1,13 +1,20 @@
 #pragma once
 void parse(char* input);
-int parse_ipv6Packet(char* packet);
-struct _compressedIpPacket parse_compressedIpPacket(char* packet, int offset);
-struct _udpHeader getUDPHeader(char* packet, int offset);
+struct _iPv6Header parse_ipv6Packet(struct _iPv6Header Header,  char* packet, int offset);
+struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket IpPacket, char* packet, int offset);
+struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int offset);
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset);
 bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t* mMTPacketDropCounter);
 
 struct _source {
 	char* fileName;
+
+};
+
+struct _iPv6Header {
+	int version;
+	int payloadLength;
+	int nextHeader;
 
 };
 
@@ -22,6 +29,7 @@ struct _mmtpHeader {
 	int version;
 	bool packetCounterFlag;
 	int fECType;
+	int payloadId;
 	int packetId;
 	int packetSequenceNumber;
 };

@@ -54,6 +54,7 @@ void parse(char* input)
     
     std::uintmax_t* iPv6MMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
     std::uintmax_t* mMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
+    std::uintmax_t* mMTPacketScramblingCounter = new std::uintmax_t[0xFFFF]{ 0 };
 
     std::uintmax_t* iPv6MMTPacketLastSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
     std::uintmax_t* contextIdSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
@@ -80,6 +81,8 @@ void parse(char* input)
     struct _iPv6Header IPv6Header {};
     struct _udpHeader UDPHeader {};
     struct _mmtpHeader MmtpHeader {};
+    struct _mmtpExtensionHeader MmtpExtensionHeader {};
+
     struct _compressedIpPacket compressedIpHeader {};
 
     while (current < size) {
@@ -141,7 +144,19 @@ void parse(char* input)
 
                 MmtpHeader = parseMmtpHeader(hBuf, 4 + 3);
                 //std::cout << "PID: " << MmtpHeader.packetId << "  Detect versio2n : " << MmtpHeader.version << std::endl;
+                if (MmtpHeader.extensionHeaderFlag) {
+                    if (MmtpHeader.packetCounterFlag) {
+                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 16 + 4);
 
+                    }
+                    else
+                    {
+                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 16);
+                    }
+                }
+                if (check_scrambling(MmtpExtensionHeader)) {
+                    mMTPacketScramblingCounter[MmtpHeader.packetId] += 1;
+                }
                 if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
                     mMTPacketDropCounter[MmtpHeader.packetId] += 1;
                     std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop Address : " << current << std::endl;
@@ -153,7 +168,19 @@ void parse(char* input)
             }
             else if (compressedIpHeader.headerType == 0x60) {
                 MmtpHeader = parseMmtpHeader(hBuf, 4 + 3 + 38 + 4);
+                if (MmtpHeader.extensionHeaderFlag) {
+                    if (MmtpHeader.packetCounterFlag) {
+                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 38 + 4 + 16 + 4);
 
+                    }
+                    else
+                    {
+                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 38 + 4 + 16);
+                    }
+                    if (check_scrambling(MmtpExtensionHeader)) {
+                        mMTPacketScramblingCounter[MmtpHeader.packetId] += 1;
+                    }
+                }
                 if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
                     mMTPacketDropCounter[MmtpHeader.packetId] += 1;
                     std::cout << "PID: 0x" << MmtpHeader.packetId <<  " Drop Address : " << current << "bytes" << std::endl;
@@ -201,7 +228,8 @@ void parse(char* input)
     for (int i = 0; i < 0xFFFF; i++) {
         if (mMTPacketCount[i] != 0) {
             std::cout << "\tPacketId: 0x" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex <<  i << "\tTotal = " << std::nouppercase << std::dec << mMTPacketCount[i] << " packets" <<
-            "\tDrop = " << mMTPacketDropCounter[i] << " packets" << std::endl;
+            "\tDrop = " << mMTPacketDropCounter[i]  <<
+            "\tScramble = " << mMTPacketScramblingCounter[i] << std::endl;
 
         }
     }
@@ -219,6 +247,15 @@ bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceN
         return true;
     }
 
+}
+
+bool check_scrambling(struct _mmtpExtensionHeader Header) {
+    if (Header.mmtScramblingControl == 0) {
+        return false;
+    }
+    else if (Header.mmtScramblingControl == (2 | 3)) {
+        return true;
+    }
 }
 
 struct _iPv6Header  parse_ipv6Packet(struct _iPv6Header Header, char* packet, int offset) {
@@ -256,16 +293,36 @@ struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket I
 
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
     _mmtpHeader MMTPHeader {};
+    int offset2 = 0;
     MMTPHeader.version = (((unsigned char*)packet)[offset + 0] >> 6) & 0x3;
     MMTPHeader.packetCounterFlag = (((unsigned char*)packet)[offset + 0] >> 5) & 0x01;
+    MMTPHeader.extensionHeaderFlag = (((unsigned char*)packet)[offset + 0] >> 1) & 0x01;
     MMTPHeader.payloadType = (((unsigned char*)packet)[offset + 1] >> 2) & 0x1F; 
     MMTPHeader.packetId = ((((unsigned char*)packet)[offset + 2] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 3];
     MMTPHeader.packetSequenceNumber = ((((unsigned char*)packet)[offset + 8] & 0xFF) << 24) | 
                                       ((((unsigned char*)packet)[offset + 9] & 0xFF) << 16) |
                                       ((((unsigned char*)packet)[offset + 10] & 0xFF) << 8) |
                                       ((unsigned char*)packet)[offset + 11];
+    if (MMTPHeader.packetCounterFlag == true) {
+        offset2 += 8;
+
+    }
+    if (MMTPHeader.extensionHeaderFlag == true) {
+        MMTPHeader.extensionHeaderType = ((((unsigned char*)packet)[offset + offset2 + 12] & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 13];
+        MMTPHeader.extensionHeaderLength = ((((unsigned char*)packet)[offset + offset2 + 14] & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 15];
+
+    }
 
     return MMTPHeader;
+}
+
+struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset) {
+    _mmtpExtensionHeader MMTPExtensionHeader{};
+    MMTPExtensionHeader.headerType = ((((unsigned char*)packet)[offset] & 0x7F) << 8) | ((unsigned char*)packet)[offset + 1];
+    if (MMTPExtensionHeader.headerType == 0x0001) {
+        MMTPExtensionHeader.mmtScramblingControl = (((unsigned char*)packet)[offset + 4] >> 3) & 0x3;
+    }
+    return MMTPExtensionHeader;
 }
 char* getPayload(char* packet, int a, int size) {
     char* newPacket = new char[size];

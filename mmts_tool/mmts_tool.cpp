@@ -222,7 +222,7 @@ bool check_scrambling(struct _mmtpExtensionHeader Header) {
     if (Header.mmtScramblingControl == 0) {
         return false;
     }
-    else if (Header.mmtScramblingControl == (2 | 3)) {
+    else if (Header.mmtScramblingControl == 2 || Header.mmtScramblingControl == 3 ) {
         return true;
     }
 }

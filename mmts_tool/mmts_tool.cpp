@@ -12,7 +12,7 @@ using namespace std::filesystem;
 
 int main(int argc, char* argv[])
 {
-    //std::cout << "loas-tools Version " << Version << "\n\n";
+    //std::cout << "mmts_tools Version " << Version << "\n\n";
 
 
     if (!argv[1]) {
@@ -31,15 +31,6 @@ int main(int argc, char* argv[])
 void parse(char* input)
 
 { 
-    /* Search Sync Header (ex. 7f)
-    STD-B32 Part3 3.5
-    int SYNC_TLV = 0x7F
-    Packet Type 1b
-    Data Length 2b
-    honhe ex. 0x5A6
-
-    */
-
     std::uintmax_t* tlvPacketCount = new std::uintmax_t[0x100]{};
     int tlvPacketTotalCount = 0;
     int tlvPacketResyncCount = 0;
@@ -51,12 +42,10 @@ void parse(char* input)
     for (int i = 0; i < 0xFFFF; i++) {
         mMTPacketLastSequenceNumber[i] = -1;
     }
-    
-    std::uintmax_t* iPv6MMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
-    std::uintmax_t* mMTPacketDropCounter = new std::uintmax_t[0xFFFF]{ 0 };
-    std::uintmax_t* mMTPacketScramblingCounter = new std::uintmax_t[0xFFFF]{ 0 };
 
-    std::uintmax_t* iPv6MMTPacketLastSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
+    _MmtPacketIdInformation* mMTPacketsInfo = new _MmtPacketIdInformation[0xFFFF]{};
+    _MmtPacketIdInformation* v6mMTPacketsInfo = new _MmtPacketIdInformation[0xFFFF]{};
+
     std::uintmax_t* contextIdSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
 
     std::intmax_t unknownTLVPacketType = 0;
@@ -128,12 +117,11 @@ void parse(char* input)
             }
             MmtpHeader =  parseMmtpHeader(hBuf, 4 + 40 + 8);
 
-            if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
-                iPv6MMTPacketDropCounter[MmtpHeader.packetId] += 1;
-                //std::cout << "PID: " << MmtpHeader.packetId << "Detect Packet Drop Address : " << current << std::endl;
+            if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
+                v6mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
             }
-            iPv6MMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
-            iPv6MMTPacketCount[MmtpHeader.packetId] += 1;
+            v6mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
+            v6mMTPacketsInfo[MmtpHeader.packetId].total += 1;
 
         }
         else if (packetType == 0x3) {
@@ -141,9 +129,8 @@ void parse(char* input)
 
 
             if (compressedIpHeader.headerType == 0x61) {
-
+                // Packetの進み具合で分岐してるの辞めたい
                 MmtpHeader = parseMmtpHeader(hBuf, 4 + 3);
-                //std::cout << "PID: " << MmtpHeader.packetId << "  Detect versio2n : " << MmtpHeader.version << std::endl;
                 if (MmtpHeader.extensionHeaderFlag) {
                     if (MmtpHeader.packetCounterFlag) {
                         MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 16 + 4);
@@ -153,18 +140,20 @@ void parse(char* input)
                     {
                         MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 16);
                     }
+                    if (check_scrambling(MmtpExtensionHeader)) {
+                        mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
+                    }
                 }
-                if (check_scrambling(MmtpExtensionHeader)) {
-                    mMTPacketScramblingCounter[MmtpHeader.packetId] += 1;
-                }
-                if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
-                    mMTPacketDropCounter[MmtpHeader.packetId] += 1;
+
+                if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
+                    mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
+
                     std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop Address : " << current << std::endl;
 
 
                 }
-                mMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
-                mMTPacketCount[MmtpHeader.packetId] += 1;
+                mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
+                mMTPacketsInfo[MmtpHeader.packetId].total += 1;
             }
             else if (compressedIpHeader.headerType == 0x60) {
                 MmtpHeader = parseMmtpHeader(hBuf, 4 + 3 + 38 + 4);
@@ -178,17 +167,17 @@ void parse(char* input)
                         MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 38 + 4 + 16);
                     }
                     if (check_scrambling(MmtpExtensionHeader)) {
-                        mMTPacketScramblingCounter[MmtpHeader.packetId] += 1;
+                        mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
                     }
                 }
-                if (check_drop(MmtpHeader, mMTPacketLastSequenceNumber, payloadSize) == true) {
-                    mMTPacketDropCounter[MmtpHeader.packetId] += 1;
+                if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
+                    mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
                     std::cout << "PID: 0x" << MmtpHeader.packetId <<  " Drop Address : " << current << "bytes" << std::endl;
 
 
                 }
-                mMTPacketLastSequenceNumber[MmtpHeader.packetId] = MmtpHeader.packetSequenceNumber;
-                mMTPacketCount[MmtpHeader.packetId] += 1;
+                mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
+                mMTPacketsInfo[MmtpHeader.packetId].total += 1;
             }
             else {
                 std::cout << "unknowncompressedIpHeaderPacketType: 0x" << std::hex <<compressedIpHeader.headerType << std::dec << std::endl;
@@ -226,21 +215,21 @@ void parse(char* input)
     std::cout << "\nCompressed IP Header MMT Packets"  << std::endl;
 
     for (int i = 0; i < 0xFFFF; i++) {
-        if (mMTPacketCount[i] != 0) {
-            std::cout << "\tPacketId: 0x" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex <<  i << "\tTotal = " << std::nouppercase << std::dec << mMTPacketCount[i] << " packets" <<
-            "\tDrop = " << mMTPacketDropCounter[i]  <<
-            "\tScramble = " << mMTPacketScramblingCounter[i] << std::endl;
+        if (mMTPacketsInfo[i].total != 0) {
+            std::cout << "\tPacketId: 0x" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex <<  i << "\tTotal = " << std::nouppercase << std::dec << mMTPacketsInfo[i].total << " packets" <<
+            "\tDrop = " << mMTPacketsInfo[i].dropTotal  <<
+            "\tScramble = " << mMTPacketsInfo[i].scramblingTotal << std::endl;
 
         }
     }
     return;
 }
 
-bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t mMTPacketDropCounter) {
-    if (mMTPacketLastSequenceNumber[Header.packetId] + 1 == (Header.packetSequenceNumber)) {
+bool check_drop(struct _mmtpHeader Header, struct _MmtPacketIdInformation* mmtpPacketsInfo) {
+    if (mmtpPacketsInfo[Header.packetId].lastSequenceNumber + 1 == (Header.packetSequenceNumber)) {
         return false;
     }
-    else if(mMTPacketLastSequenceNumber[Header.packetId] == (-1)) {
+    else if(mmtpPacketsInfo[Header.packetId].lastSequenceNumber == (-1)) {
         return false; // 初期値の-1だと評価不能なため
     }
     else {
@@ -342,7 +331,7 @@ struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int of
 
 
 void usage() {
-    std::cout << "Usage: mmts-tools [options] <input> \n";
+    std::cout << "Usage: mmts_tools [options] <input> \n";
     std::cout << "Options:\n";
     std::cout << "\n\n";
     return;

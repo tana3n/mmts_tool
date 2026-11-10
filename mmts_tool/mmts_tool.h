@@ -5,7 +5,7 @@ struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket I
 struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int offset);
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset);
 struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset);
-bool check_drop(struct _mmtpHeader Header, std::intmax_t* mMTPacketLastSequenceNumber, std::uintmax_t mMTPacketDropCounter);
+bool check_drop(struct _mmtpHeader Header, struct _MmtPacketIdInformation* mmtpPacketsInfo);
 bool check_scrambling(struct _mmtpExtensionHeader Header);
 
 struct _source {
@@ -72,4 +72,14 @@ struct _compressedIpPacket {
 	int packetSequenceNumber;
 	int headerType;
 	struct _particalHeader compressedHeader;
+};
+
+struct _MmtPacketIdInformation {
+	int total = 0;
+	int dropTotal = 0;
+	int scramblingTotal = 0;
+	int errorTotal = 0;
+	int lastSequenceNumber = -1;
+	std::string packetIdName;
+
 };

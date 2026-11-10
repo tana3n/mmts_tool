@@ -35,14 +35,6 @@ void parse(char* input)
     int tlvPacketTotalCount = 0;
     int tlvPacketResyncCount = 0;
 
-    std::uintmax_t* iPv6MMTPacketCount = new std::uintmax_t[0xFFFF]{};
-    std::uintmax_t* mMTPacketCount = new std::uintmax_t[0xFFFF]{};
-
-    std::intmax_t* mMTPacketLastSequenceNumber = new std::intmax_t[0xFFFF]{};
-    for (int i = 0; i < 0xFFFF; i++) {
-        mMTPacketLastSequenceNumber[i] = -1;
-    }
-
     _MmtPacketIdInformation* mMTPacketsInfo = new _MmtPacketIdInformation[0xFFFF]{};
     _MmtPacketIdInformation* v6mMTPacketsInfo = new _MmtPacketIdInformation[0xFFFF]{};
 
@@ -55,7 +47,6 @@ void parse(char* input)
     char* hBuf = new char[2000];
     std::filesystem::path Input = input;
     std::intmax_t size = file_size(Input);
-    std::cout << "filesize: " << size << " bytes" << std::endl;
     std::ifstream source(Input, std::ios::in | std::ios::binary);
     if (!source) {
         std::cout << "Can not open source: " << Input;
@@ -78,7 +69,7 @@ void parse(char* input)
         source.seekg(current);
         source.read(hBuf, 2000);
         if (!(hBuf[0] == 0x7F)) {
-            std::cout << "\rResync TLV Header: " << current << " bytes";
+            std::cout << "\rResync TLV Header: " << current << " bytes" << std::endl;
             source.seekg(current + 1);
             tlvPacketResyncCount++;
             current++;
@@ -97,11 +88,7 @@ void parse(char* input)
             tlvPacketResyncCount++;
             continue;
         }
-        //parse_tlvPayloadtSize(hBuf);
         payloadSize = parse_tlvPayloadtSize(hBuf);
-
-        //std::cout << "TLV Packet payloadSize2:" << payloadSize << std::endl;
-        //source.read(hBuf, 4 + payloadSize);
 
         if (packetType == 0x2) {
             IPv6Header = parse_ipv6Packet(IPv6Header, hBuf, 4);
@@ -135,7 +122,7 @@ void parse(char* input)
                 offset = 4 + 3 + 38 + 4;
             }
             else {
-                std::cout << "unknowncompressedIpHeaderPacketType: 0x" << std::hex << compressedIpHeader.headerType << std::dec << std::endl;
+                std::cout << "unknown compressedIpHeader PacketType: 0x" << std::hex << compressedIpHeader.headerType << std::dec << std::endl;
                 continue;
             }
             if (compressedIpHeader.headerType == 0x60 || compressedIpHeader.headerType == 0x61 ) {
@@ -157,7 +144,7 @@ void parse(char* input)
                 if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
                     mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
 
-                    std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop Address : " << current << std::endl;
+                    std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop : " << current << " bytes" << std::endl;
 
 
                 }
@@ -167,8 +154,7 @@ void parse(char* input)
         } else if (packetType == 0xFE) {
         } else if (packetType == 0xFF) {
         } else {
-            std::cout << "unknownTLVPacketType: 0x" << packetType << std::endl;
-            std::cout << "Resync" << std::endl;
+            std::cout << "unknown TLV PacketType: 0x" << packetType << " try resync" << std::endl;
             current++;
             unknownTLVPacketType += 1;
             continue;
@@ -177,14 +163,15 @@ void parse(char* input)
         current = current + payloadSize;
 
         if (tlvPacketTotalCount % 100 == 0) {
-            std::cout <<  "progress:" << current / 1024  << " kBytes." << "\r";
+            std::cout <<  "progress:" << current / 1024  << " / " << size / 1024 << " kBytes." << "\r";
         }
 
     }
-    std::cout << "TLV Packet Total:" << tlvPacketTotalCount << std::endl;
-    std::cout << "TLV Packet Resync Total:" << tlvPacketResyncCount << std::endl;
-    std::cout << "TLV Null Packet Total:" << tlvPacketCount[0xFF] << "\n" << std::endl;
+    std::cout << "progress:" << current / 1024 << " / " << size / 1024 << " kBytes." << std::endl;
+    std::cout << "\nTLV Packet Total:" << tlvPacketTotalCount << std::endl;
+    std::cout << "TLV Null Packet Total:" << tlvPacketCount[0xFF] << std::endl;
     std::cout << "TLV Unknown Packet Total:" << unknownTLVPacketType << "\n"  << std::endl;
+    std::cout << "TLV Resync Total:" << tlvPacketResyncCount << "\n" << std::endl;
 
 
     for (int i = 0; i < 0xFF; i++) {
@@ -293,6 +280,7 @@ struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset) {
     }
     return MMTPExtensionHeader;
 }
+
 char* getPayload(char* packet, int a, int size) {
     char* newPacket = new char[size];
     for (int i = 0; i < size ; i++) {

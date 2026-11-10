@@ -127,18 +127,27 @@ void parse(char* input)
         else if (packetType == 0x3) {
             compressedIpHeader = parse_compressedIpPacket(compressedIpHeader, hBuf, 4 + 0);
 
-
+            int offset;
             if (compressedIpHeader.headerType == 0x61) {
-                // Packetの進み具合で分岐してるの辞めたい
-                MmtpHeader = parseMmtpHeader(hBuf, 4 + 3);
+                offset = 4 + 3;
+            }
+            else if (compressedIpHeader.headerType == 0x60) {
+                offset = 4 + 3 + 38 + 4;
+            }
+            else {
+                std::cout << "unknowncompressedIpHeaderPacketType: 0x" << std::hex << compressedIpHeader.headerType << std::dec << std::endl;
+                continue;
+            }
+            if (compressedIpHeader.headerType == 0x60 || compressedIpHeader.headerType == 0x61 ) {
+                MmtpHeader = parseMmtpHeader(hBuf, offset);
                 if (MmtpHeader.extensionHeaderFlag) {
                     if (MmtpHeader.packetCounterFlag) {
-                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 16 + 4);
+                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16 + 4);
 
                     }
                     else
                     {
-                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 16);
+                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16);
                     }
                     if (check_scrambling(MmtpExtensionHeader)) {
                         mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
@@ -155,35 +164,6 @@ void parse(char* input)
                 mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
                 mMTPacketsInfo[MmtpHeader.packetId].total += 1;
             }
-            else if (compressedIpHeader.headerType == 0x60) {
-                MmtpHeader = parseMmtpHeader(hBuf, 4 + 3 + 38 + 4);
-                if (MmtpHeader.extensionHeaderFlag) {
-                    if (MmtpHeader.packetCounterFlag) {
-                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 38 + 4 + 16 + 4);
-
-                    }
-                    else
-                    {
-                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, 4 + 3 + 38 + 4 + 16);
-                    }
-                    if (check_scrambling(MmtpExtensionHeader)) {
-                        mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
-                    }
-                }
-                if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
-                    mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
-                    std::cout << "PID: 0x" << MmtpHeader.packetId <<  " Drop Address : " << current << "bytes" << std::endl;
-
-
-                }
-                mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
-                mMTPacketsInfo[MmtpHeader.packetId].total += 1;
-            }
-            else {
-                std::cout << "unknowncompressedIpHeaderPacketType: 0x" << std::hex <<compressedIpHeader.headerType << std::dec << std::endl;
-
-            }
-            //continue;
         } else if (packetType == 0xFE) {
         } else if (packetType == 0xFF) {
         } else {

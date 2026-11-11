@@ -49,7 +49,7 @@ void parse(struct _args args)
     std::intmax_t nullTLVPacket = 0;
 
     // 多分Structかなんかで構造体でファイル情報渡してからParseした方が良さそうな気がする
-    char* hBuf = new char[2000];
+    char* hBuf = new char[5000];
     char* input = args.inputFileName;
     std::filesystem::path Input = input;
     //std::filesystem::path Output = args.outputFileName;
@@ -79,7 +79,7 @@ void parse(struct _args args)
 
     while (current < size) {
         source.seekg(current);
-        source.read(hBuf, 2000);
+        source.read(hBuf, 5000);
         if (!(hBuf[0] == 0x7F)) {
             std::cout << "\rResync TLV Header: " << current << " bytes" << std::endl;
             source.seekg(current + 1);
@@ -101,7 +101,9 @@ void parse(struct _args args)
             continue;
         }
         payloadSize = parse_tlvPayloadtSize(hBuf);
-
+        if (payloadSize >= 5000) {
+            std::cout << "TLV Payload Size is overflow hBuf" << payloadSize << std::endl;
+        }
         if (packetType == 0x2) {
             IPv6Header = parse_ipv6Packet(IPv6Header, hBuf, 4);
 

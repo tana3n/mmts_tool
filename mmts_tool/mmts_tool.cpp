@@ -23,13 +23,18 @@ int main(int argc, char* argv[])
     }
     //cli_parser(argv, argc);
     std::cout << argv[1] << "\n\n";
-
-    parse(argv[1]);
+    struct _args Args {};
+    Args.inputFileName = argv[1];
+    //Args.outputFileName = "D:\output.mmts";
+    Args.selectMode = false;
+    //Args.selectedTLVType = 0xFE;
+    //Args.outputFileName = std::to_string(argv[1]) ++ .selected.mmts
+    //};
+    parse(Args);
     return 0;
 }
 
-void parse(char* input)
-
+void parse(struct _args args)
 { 
     std::uintmax_t* tlvPacketCount = new std::uintmax_t[0x100]{};
     int tlvPacketTotalCount = 0;
@@ -45,14 +50,21 @@ void parse(char* input)
 
     // 多分Structかなんかで構造体でファイル情報渡してからParseした方が良さそうな気がする
     char* hBuf = new char[2000];
+    char* input = args.inputFileName;
     std::filesystem::path Input = input;
+    //std::filesystem::path Output = args.outputFileName;
+
     std::intmax_t size = file_size(Input);
     std::ifstream source(Input, std::ios::in | std::ios::binary);
     if (!source) {
         std::cout << "Can not open source: " << Input;
         return;
     }
-
+     //std::ofstream dest(Output, std::ios::out | std::ios::binary | std::ios::trunc);
+     //   if (!dest) {
+     //       std::cout << "Can not open output: " << Output;
+     //       return;
+     //   }
     int packetType = 0xFD;
     std::uintmax_t payloadSize = 0;
     std::intmax_t  current = source.tellg();
@@ -159,9 +171,17 @@ void parse(char* input)
             unknownTLVPacketType += 1;
             continue;
         }
+
+
         current = current + 4; //たまたまSyncHeaderが生きてるだけの可能性を考慮してここで判定する
         current = current + payloadSize;
+        //if (packetType == args.selectedTLVType) {
+        //    // hbufをget
+        //    dest.write(hBuf, payloadSize + 4);
+        //    args.outputSize = args.outputSize + payloadSize + 4;
+        //    std::cout << "debug progress:" << current  << " / " << size  << " / " << payloadSize <<" = " << args.outputSize<<   std::endl;
 
+        //}
         if (tlvPacketTotalCount % 100 == 0) {
             std::cout <<  "progress:" << current / 1024  << " / " << size / 1024 << " kBytes." << "\r";
         }

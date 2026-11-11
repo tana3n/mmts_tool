@@ -1,5 +1,5 @@
 #pragma once
-void parse(char* input);
+void parse(struct _args input);
 struct _iPv6Header parse_ipv6Packet(struct _iPv6Header Header,  char* packet, int offset);
 struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket IpPacket, char* packet, int offset);
 struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int offset);
@@ -8,8 +8,12 @@ struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset);
 bool check_drop(struct _mmtpHeader Header, struct _MmtPacketIdInformation* mmtpPacketsInfo);
 bool check_scrambling(struct _mmtpExtensionHeader Header);
 
-struct _source {
-	char* fileName;
+struct _args {
+	char* inputFileName;
+	const char* outputFileName;
+	bool selectMode;
+	int selectedTLVType;
+	int outputSize;
 
 };
 

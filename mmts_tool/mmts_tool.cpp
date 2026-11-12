@@ -184,12 +184,12 @@ void parse(struct _args args)
         //    std::cout << "debug progress:" << current  << " / " << size  << " / " << payloadSize <<" = " << args.outputSize<<   std::endl;
 
         //}
-        if (tlvPacketTotalCount % 100 == 0) {
-            std::cout <<  "progress:" << current / 1024  << " / " << size / 1024 << " kBytes." << "\r";
+        if (tlvPacketTotalCount % 1000 == 0) {
+            std::cout <<  "progress:" << current   << " / " << size  << " Bytes." << "\r";
         }
 
     }
-    std::cout << "progress:" << current / 1024 << " / " << size / 1024 << " kBytes." << std::endl;
+    std::cout << "progress:" << current  << " / " << size  << " Bytes." << std::endl;
     std::cout << "\nTLV Packet Total:" << tlvPacketTotalCount << std::endl;
     std::cout << "TLV Null Packet Total:" << tlvPacketCount[0xFF] << std::endl;
     std::cout << "TLV Unknown Packet Total:" << unknownTLVPacketType << "\n"  << std::endl;
@@ -211,6 +211,7 @@ void parse(struct _args args)
 
         }
     }
+    // 本当は諸々解放する必要あり
     return;
 }
 

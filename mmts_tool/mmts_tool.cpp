@@ -126,7 +126,7 @@ void parse(struct _args args)
             }
             MmtpHeader =  parseMmtpHeader(hBuf, 4 + 40 + 8);
 
-            if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
+            if (check_drop(MmtpHeader, v6mMTPacketsInfo) == true) {
                 v6mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
             }
             v6mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;

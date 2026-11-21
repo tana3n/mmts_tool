@@ -44,27 +44,39 @@ struct _tlvNIT_header parse_TlvNIT(char* packet, int offset) {
 		if (Descriptor_tag == 0x40) {
 			char* DescriptorName = new char[Descriptor_length];
 			for (i = 0; i < Descriptor_length; i++) {
-				int nn_Descriptor_data = (((unsigned char*)packet)[offset + i + offset2 + 2]) & 0xFF;
+				DescriptorName[i] = (((unsigned char*)packet)[offset + i + offset2 + 2]) & 0xFF;
+				//int nn_Descriptor_data = (((unsigned char*)packet)[offset + i + offset2 + 2]) & 0xFF;
 				//DescriptorName[i] = nn_Descriptor_data;
 				//std::cout << std::hex << nn_Descriptor_data << std::dec << std::endl;
 
 			}
-			//const char* s = DescriptorName.string().c_str();
-			//std::cout << "nn_Descriptor_Name: " << reinterpret_cast<const char*>()) << std::endl;
+			// ref: http ://yukakumumu.blog.fc2.com/blog-entry-38.html
 
-			auto const dest_size = MultiByteToWideChar(CP_UTF8, 0U, DescriptorName, -1, nullptr, 0U);
-			std::vector<wchar_t> dest(dest_size, L'\0');
-			if (::MultiByteToWideChar(CP_UTF8, 0U, DescriptorName, -1, dest.data(), dest.size()) == 0) {
-				throw std::system_error{ static_cast<int>(::GetLastError()), std::system_category() };
-			}
-			dest.resize(std::char_traits<wchar_t>::length(dest.data()));
-			dest.shrink_to_fit();
-			std::wstring ttt = std::wstring(dest.begin(), dest.end());
-			//std::wcout << "nn_Descriptor_Name: " << ttt << std::endl;
+			std::string out = DescriptorName;
+
+			int sizeU = MultiByteToWideChar(CP_UTF8, 0, out.c_str(), -1, NULL, 0);
+			wchar_t* Unicode= new wchar_t[sizeU];
+			MultiByteToWideChar(CP_UTF8, 0, out.c_str(), -1, Unicode, sizeU);
+
+			int dest_size = WideCharToMultiByte(932, 0, Unicode, -1, NULL, 0, NULL, NULL);
+			char* CP932 = new char[dest_size];
+			WideCharToMultiByte(932, 0, Unicode, -1, CP932, dest_size, NULL, NULL);
+
+			std::string out2 = CP932;
+			std::cout << "[NIT-TLV]0x"<< std::hex << Descriptor_tag << std::dec << ": " << out2.c_str() << std::endl;
 
 			delete[] DescriptorName;
+			delete[] CP932;
+			delete[] Unicode;
 		}
-		else {
+		else if (Descriptor_tag == 0x41) { // ‚ ‚Á‚Ä‚é‚©‚Í•s–¾
+			for (i = 0; i < Descriptor_length; i = i + 3) {
+				int ServiceId = (((((unsigned char*)packet)[offset + i + offset2 + 2]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + i + offset2 + 2 +1];
+				int ServiceType = (((unsigned char*)packet)[offset + i + offset2 + 2 + 2]) & 0xFF;
+				std::cout << "[NIT-TLV]0x41 ServiceId: "  << ServiceId << std::dec << std::endl;
+				std::cout << "[NIT-TLV]0x41 ServiceType: " << std::hex << ServiceType << std::dec << std::endl;
+			}
+		} else if(Descriptor_tag == 0x43 || Descriptor_tag == 0xCD || Descriptor_tag == 0xFE){
 			std::cout << "Descriptor tag Id : 0x" << std::hex << Descriptor_tag << std::dec << std::endl;
 		}
 

@@ -81,7 +81,13 @@ void parse(struct _args args)
 
     while (current < size) {
         source.seekg(current);
-        source.read(hBuf, 5000);
+        // 終端のバッファ処理
+        if (size - current >= 5000) {
+            source.read(hBuf, 5000);
+        }
+        else {
+            source.read(hBuf, size - current);
+        }
         if (!(hBuf[0] == 0x7F)) {
             std::cout << "\rResync TLV Header: " << current << " bytes" << std::endl;
             source.seekg(current + 1);

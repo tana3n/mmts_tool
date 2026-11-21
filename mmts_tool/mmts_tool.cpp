@@ -7,6 +7,7 @@
 
 #include "tlv.hpp"
 #include "mmts_tool.h"
+#include "mmtp.h"
 
 using namespace std::filesystem;
 
@@ -42,6 +43,7 @@ void parse(struct _args args)
 
     _MmtPacketIdInformation* mMTPacketsInfo = new _MmtPacketIdInformation[0xFFFF]{};
     _MmtPacketIdInformation* v6mMTPacketsInfo = new _MmtPacketIdInformation[0xFFFF]{};
+
 
     std::uintmax_t* contextIdSequenceNumber = new std::uintmax_t[0xFFFF]{ 0 };
 
@@ -141,16 +143,24 @@ void parse(struct _args args)
             }
             if (compressedIpHeader.headerType == 0x60 || compressedIpHeader.headerType == 0x61 ) {
                 MmtpHeader = parseMmtpHeader(hBuf, offset);
+                int offset2 = 0;
                 if (MmtpHeader.extensionHeaderFlag) {
                     if (MmtpHeader.packetCounterFlag) {
                         MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16 + 4);
+                        offset2 = offset2 + 16 + 4;
                     }
                     else
                     {
                         MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16);
+                        offset2 = offset2 + 16;
                     }
                     if (check_scrambling(MmtpExtensionHeader)) {
                         mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
+                    }
+                }
+                else {
+                    if (MmtpHeader.packetCounterFlag) {
+                        offset2 = offset2 + 4;
                     }
                 }
                 
@@ -163,7 +173,24 @@ void parse(struct _args args)
                 }
                 mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
                 mMTPacketsInfo[MmtpHeader.packetId].total += 1;
+                if ((MmtpHeader.packetId == 0x0000) && (MmtpHeader.payloadType == 0x0002)) {
+                    //std::cout << "extensionHeaderLength: 0x" << std::hex << MmtpHeader.extensionHeaderLength << std::dec << std::endl;
+                    _signaling_message MMTPSignalingMessage{};
+                    MMTPSignalingMessage = parseMmtpMessages(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength);
+                    if ((!MMTPSignalingMessage.aggregation_flag) &&( MMTPSignalingMessage.fragment_counter != 0x0) )  {
+                        // offsetに+2
+                        //_pa_message A =  parsePAMessage(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2);
+                        // table()
+                    }
+                    else {
+                        std::cout << "fragment_counter: 0x" << std::hex << MMTPSignalingMessage.fragment_counter << std::dec << std::endl;
+
+                    }
+                    
+                }
+                else if ((MmtpHeader.packetId == 0x0001)) {}
             }
+            
         } else if (packetType == 0xFE) {
             if (hBuf[4] == 0x40) { // TLV-NIT
                 std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
@@ -313,6 +340,61 @@ struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset) {
     }
     return MMTPExtensionHeader;
 }
+
+struct _mmtp_payload parseMmtpPayload(char* packet, int offset, int payloadType) {
+    if (payloadType == 0x00) {
+
+    }
+};
+
+struct _signaling_message parseMmtpMessages(char* packet, int offset) {
+    _signaling_message MMTPSignalingMessage{};
+    MMTPSignalingMessage.fragmentation_indicator = (((unsigned char*)packet)[offset + 0] >> 6) & 0x3;
+    MMTPSignalingMessage.length_extension_flag = (((unsigned char*)packet)[offset + 0] >> 1) & 0x1;
+    MMTPSignalingMessage.aggregation_flag = (((unsigned char*)packet)[offset + 0]) & 0x1;
+    MMTPSignalingMessage.fragment_counter = (((unsigned char*)packet)[offset + 1]) & 0xFF;
+    if (!MMTPSignalingMessage.aggregation_flag) {
+    }
+    else {
+        std::cout << "aggregation_flag is true " << std::endl;
+        //        if (!MMTPSignalingMessage.fragmentation_indicator)
+
+    }
+    //std::cout << "fragmentation_indicator is " << MMTPSignalingMessage.fragmentation_indicator << std::endl;
+
+
+    return MMTPSignalingMessage;
+};
+struct _pa_message parsePAMessage(char* packet, int offset) {
+    _pa_message PAMessage{};
+    PAMessage.message_id = ((((unsigned char*)packet)[offset + 0] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 1];
+    PAMessage.version = (((unsigned char*)packet)[offset + 2]);
+    PAMessage.length = ((((unsigned char*)packet)[offset + 3] & 0xFF) << 24) |
+        ((((unsigned char*)packet)[offset + 4] & 0xFF) << 16) |
+        ((((unsigned char*)packet)[offset + 5] & 0xFF) << 8) |
+        ((unsigned char*)packet)[offset + 6];
+    PAMessage.number_of_tables = (((unsigned char*)packet)[offset + 7]);
+    std::cout << std::setw(4) << std::setfill('0') << std::uppercase << std::hex << "PAMessage of message_id  0x" << PAMessage.message_id << std::endl;
+    std::cout << "PAMessage of version  0x" << PAMessage.version << std::endl;
+    std::cout << "PAMessage of length  0x" << PAMessage.length << std::endl;
+
+    std::cout << "PAMessage of number_of_tables  0x" << PAMessage.number_of_tables << std::nouppercase << std::dec << std::endl;
+
+    int offset2 = 8;
+    for (int i = 0; i < PAMessage.number_of_tables; i++) {
+        PAMessage.pa_table[i].table_id = (((unsigned char*)packet)[offset + offset2]); // PA MessageだったらMPT/PLT/LCTしかあり得ないはず(0x11~1Fと80/81) //STD-B60 Table4-8
+        PAMessage.pa_table[i].table_version = (((unsigned char*)packet)[offset + offset2 + 1]);
+        PAMessage.pa_table[i].table_length = ((((unsigned char*)packet)[offset + offset2 + 2] & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 3];
+        offset2 = offset2 + 4;
+        std::cout << "PAMessage of table  0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << PAMessage.pa_table[i].table_id << std::endl;
+
+    }
+    //for (int i = 0; i < PAMessage.number_of_tables; i++) {
+    //    // parse_pa_table(packet, offset + offset2);
+    //    //
+    //}
+    return PAMessage;
+};
 
 char* getPayload(char* packet, int a, int size) {
     char* newPacket = new char[size];

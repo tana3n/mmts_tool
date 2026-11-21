@@ -5,6 +5,8 @@ struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket I
 struct _udpHeader getUDPHeader(struct _udpHeader UDPHeader, char* packet, int offset);
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset);
 struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset);
+struct _pa_message parsePAMessage(char* packet, int offset);
+struct _signaling_message parseMmtpMessages(char* packet, int offset);
 bool check_drop(struct _mmtpHeader Header, struct _MmtPacketIdInformation* mmtpPacketsInfo);
 bool check_scrambling(struct _mmtpExtensionHeader Header);
 

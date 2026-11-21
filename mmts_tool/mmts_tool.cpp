@@ -144,7 +144,6 @@ void parse(struct _args args)
                 if (MmtpHeader.extensionHeaderFlag) {
                     if (MmtpHeader.packetCounterFlag) {
                         MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16 + 4);
-
                     }
                     else
                     {
@@ -154,7 +153,7 @@ void parse(struct _args args)
                         mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
                     }
                 }
-
+                
                 if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
                     mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
 
@@ -166,6 +165,18 @@ void parse(struct _args args)
                 mMTPacketsInfo[MmtpHeader.packetId].total += 1;
             }
         } else if (packetType == 0xFE) {
+            if (hBuf[4] == 0x40) { // TLV-NIT
+                std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
+                parse_TlvNIT(hBuf, 4);
+            } else             if (hBuf[4] == 0x41) { // TLV-NIT
+                std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
+                //parse_TlvNIT(hBuf, 4);
+            }
+            else if (hBuf[4] == 0xFE) { //AMT
+                std::cout << "AMT TLV PacketType: 0x" << packetType << "\n" << std::endl;
+
+            }
+
         } else if (packetType == 0xFF) {
         } else {
             std::cout << "unknown TLV PacketType: 0x" << packetType << " try resync" << std::endl;
@@ -269,14 +280,14 @@ struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket I
     }
     
 }
-
+// B32よりB60の6.3章とか見た方が良いと思う
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
     _mmtpHeader MMTPHeader {};
     int offset2 = 0;
     MMTPHeader.version = (((unsigned char*)packet)[offset + 0] >> 6) & 0x3;
     MMTPHeader.packetCounterFlag = (((unsigned char*)packet)[offset + 0] >> 5) & 0x01;
     MMTPHeader.extensionHeaderFlag = (((unsigned char*)packet)[offset + 0] >> 1) & 0x01;
-    MMTPHeader.payloadType = (((unsigned char*)packet)[offset + 1] >> 2) & 0x1F; 
+    MMTPHeader.payloadType = (((unsigned char*)packet)[offset + 1]) & 0x1F; 
     MMTPHeader.packetId = ((((unsigned char*)packet)[offset + 2] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 3];
     MMTPHeader.packetSequenceNumber = ((((unsigned char*)packet)[offset + 8] & 0xFF) << 24) | 
                                       ((((unsigned char*)packet)[offset + 9] & 0xFF) << 16) |
@@ -284,17 +295,16 @@ struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
                                       ((unsigned char*)packet)[offset + 11];
     if (MMTPHeader.packetCounterFlag == true) {
         offset2 += 8;
-
     }
+
     if (MMTPHeader.extensionHeaderFlag == true) {
         MMTPHeader.extensionHeaderType = ((((unsigned char*)packet)[offset + offset2 + 12] & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 13];
         MMTPHeader.extensionHeaderLength = ((((unsigned char*)packet)[offset + offset2 + 14] & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 15];
-
     }
 
     return MMTPHeader;
 }
-
+// HeaderってかいてあるけどMMTPPacketのExtensionHeaderTypeとかは関係ない。
 struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset) {
     _mmtpExtensionHeader MMTPExtensionHeader{};
     MMTPExtensionHeader.headerType = ((((unsigned char*)packet)[offset] & 0x7F) << 8) | ((unsigned char*)packet)[offset + 1];

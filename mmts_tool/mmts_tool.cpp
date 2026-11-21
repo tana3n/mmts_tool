@@ -245,6 +245,17 @@ void parse(struct _args args)
             std::cout << "TLV Packet Type 0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << i << std::nouppercase << std::dec << ": " << tlvPacketCount[i] << " packets" << std::endl;
         }
     }
+    std::cout << "\nIPv6 Header MMT Packets" << std::endl;
+
+    for (int i = 0; i < 0xFFFF; i++) {
+        if (v6mMTPacketsInfo[i].total != 0) {
+            std::cout << "\tPacketId: 0x" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex << i << "\tTotal = " << std::nouppercase << std::dec << v6mMTPacketsInfo[i].total << " packets" <<
+                "\tDrop = " << v6mMTPacketsInfo[i].dropTotal <<
+                "\tScramble = " << v6mMTPacketsInfo[i].scramblingTotal << std::endl;
+
+        }
+    }
+    // 本
     std::cout << "\nCompressed IP Header MMT Packets"  << std::endl;
 
     for (int i = 0; i < 0xFFFF; i++) {

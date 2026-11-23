@@ -136,6 +136,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="common.cpp" />
+    <ClCompile Include="mmtp.cpp" />
     <ClCompile Include="mmts_tool.cpp" />
     <ClCompile Include="tlv.cpp" />
   </ItemGroup>

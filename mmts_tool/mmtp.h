@@ -1,5 +1,8 @@
 #pragma once
 
+int check_single_pa_message_type(char* packet, int offset);
+int parse_plt(char* packet, int offset);
+
 struct _mmtp_payload {
 
 };
@@ -32,8 +35,12 @@ struct _table_Mpt{
 struct _table_Plt{};
 
 struct _signaling_message {
-	int fragmentation_indicator;
-	bool length_extension_flag;
-	bool aggregation_flag;
-	int fragment_counter;
+	int fragmentation_indicator = 0;
+	bool length_extension_flag = false;
+	bool aggregation_flag = false;
+	int fragment_counter = 0;
+};
+
+struct _plt {
+
 };

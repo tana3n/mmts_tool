@@ -96,6 +96,7 @@ void parse(struct _args args)
             continue;
         }
         packetType = ((unsigned char*)hBuf)[0x1];/* parse_packetType(hBuf)*/;
+
         //std::cout << "TLV Packet packetType hbuf[1]:"  << hBuf[1] << std::endl;
         //std::cout << "TLV Packet packetType a:" << std::hex << packetType << std::endl;      
 
@@ -141,6 +142,8 @@ void parse(struct _args args)
                 offset = 4 + 3;
             }
             else if (compressedIpHeader.headerType == 0x60) {
+                //std::cout << "compressedIpHeader.headerType: 0x" << std::hex << compressedIpHeader.headerType << std::dec << std::endl;
+                // 256 + 48
                 offset = 4 + 3 + 38 + 4;
             }
             else {
@@ -149,43 +152,55 @@ void parse(struct _args args)
             }
             if (compressedIpHeader.headerType == 0x60 || compressedIpHeader.headerType == 0x61 ) {
                 MmtpHeader = parseMmtpHeader(hBuf, offset);
-                int offset2 = 0;
+                int offset2 = 12;
+                if (MmtpHeader.packetCounterFlag) {
+                    offset2 = offset2 + 4;
+                }
                 if (MmtpHeader.extensionHeaderFlag) {
-                    if (MmtpHeader.packetCounterFlag) {
-                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16 + 4);
-                        offset2 = offset2 + 16 + 4;
-                    }
-                    else
-                    {
-                        MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + 16);
-                        offset2 = offset2 + 16;
-                    }
+                    offset2 = offset2 + 4;
+                    MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + offset2);
+                    //offset2 = MmtpHeader.extensionHeaderLength;
                     if (check_scrambling(MmtpExtensionHeader)) {
                         mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
                     }
                 }
-                else {
-                    if (MmtpHeader.packetCounterFlag) {
-                        offset2 = offset2 + 4;
-                    }
-                }
-                
+               
                 if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
                     mMTPacketsInfo[MmtpHeader.packetId].dropTotal += 1;
 
                     std::cout << "PID: 0x" << std::hex << MmtpHeader.packetId << std::dec << " Drop : " << current << " bytes" << std::endl;
-
-
                 }
+
                 mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
                 mMTPacketsInfo[MmtpHeader.packetId].total += 1;
                 if ((MmtpHeader.packetId == 0x0000) && (MmtpHeader.payloadType == 0x0002)) {
-                    //std::cout << "extensionHeaderLength: 0x" << std::hex << MmtpHeader.extensionHeaderLength << std::dec << std::endl;
+                    //std::cout << "payloadSize: 0x" << std::hex << payloadSize << std::dec << std::endl;
+                    //std::cout << "Current: " << std::hex << offset + offset2 + MmtpHeader.extensionHeaderLength << std::dec << std::endl;
+
                     _signaling_message MMTPSignalingMessage{};
                     MMTPSignalingMessage = parseMmtpMessages(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength);
-                    if ((!MMTPSignalingMessage.aggregation_flag) &&( MMTPSignalingMessage.fragment_counter != 0x0) )  {
+                    /*for (int i = 0; i < payloadSize + 5; i++) {
+                        int j = ((unsigned char*)hBuf)[i] & 0xFF;
+                        std::cout << "payload: " << std::setw(2) << std::setfill('0') << std::hex << j << std::dec << std::endl;
+                    }*/
+                    if ((!MMTPSignalingMessage.aggregation_flag) )  {
                         // offsetに+2
-                        //_pa_message A =  parsePAMessage(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2);
+                        _pa_message A =  parsePAMessage(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2);
+                        if (A.number_of_tables == 0) {
+                            // 0x00の場合は1つだけみたいな
+                            // offset + offset2 + MmtpHeader.extensionHeaderLength + 2 に +8することになりそう
+            
+                            if (check_single_pa_message_type(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2 + 8) == 0x80) {
+                                int a = parse_plt(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2 + 8);
+                                std::cout << "[PA Message] MMT General Location Info: 0x" << std::hex << a << std::dec << std::endl;
+
+                            }
+                            else {
+                                int i = hBuf[offset + offset2 + MmtpHeader.extensionHeaderLength + 2 + 8];
+                                std::cout << "PA Message table ID: 0x" << std::hex << i << std::dec << std::endl;
+
+                            }
+                        }
                         // table()
                     }
                     else {
@@ -210,7 +225,7 @@ void parse(struct _args args)
 
             }
 
-        } else if (packetType == 0xFF) {
+        } else if (packetType == 0xFF) { // NULLパケットのサイズを計算してみてもいいかも
         } else {
             std::cout << "unknown TLV PacketType: 0x" << packetType << " try resync" << std::endl;
             current++;
@@ -228,7 +243,7 @@ void parse(struct _args args)
         //    std::cout << "debug progress:" << current  << " / " << size  << " / " << payloadSize <<" = " << args.outputSize<<   std::endl;
 
         //}
-        if (tlvPacketTotalCount % 1000 == 0) {
+        if (tlvPacketTotalCount % 10000 == 0) {
             std::cout <<  "progress:" << current   << " / " << size  << " Bytes." << "\r";
         }
 
@@ -324,7 +339,7 @@ struct _compressedIpPacket parse_compressedIpPacket(struct _compressedIpPacket I
     }
     
 }
-// B32よりB60の6.3章とか見た方が良いと思う
+// B32よりB60の6.4章とか見た方が良いと思う
 struct _mmtpHeader parseMmtpHeader(char* packet, int offset) {
     _mmtpHeader MMTPHeader {};
     int offset2 = 0;
@@ -355,6 +370,11 @@ struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset) {
     if (MMTPExtensionHeader.headerType == 0x0001) {
         MMTPExtensionHeader.mmtScramblingControl = (((unsigned char*)packet)[offset + 4] >> 3) & 0x3;
     }
+    else
+    {
+        std::cout << "MMTPExtensionHeader.headerType:  " << MMTPExtensionHeader.headerType << std::endl;
+
+    }
     return MMTPExtensionHeader;
 }
 
@@ -363,13 +383,14 @@ struct _mmtp_payload parseMmtpPayload(char* packet, int offset, int payloadType)
 
     }
 };
-
+// 事実上Signaling Message(payload_type == 0x02)専用と化してる
 struct _signaling_message parseMmtpMessages(char* packet, int offset) {
     _signaling_message MMTPSignalingMessage{};
     MMTPSignalingMessage.fragmentation_indicator = (((unsigned char*)packet)[offset + 0] >> 6) & 0x3;
     MMTPSignalingMessage.length_extension_flag = (((unsigned char*)packet)[offset + 0] >> 1) & 0x1;
     MMTPSignalingMessage.aggregation_flag = (((unsigned char*)packet)[offset + 0]) & 0x1;
     MMTPSignalingMessage.fragment_counter = (((unsigned char*)packet)[offset + 1]) & 0xFF;
+
     if (!MMTPSignalingMessage.aggregation_flag) {
     }
     else {
@@ -379,23 +400,26 @@ struct _signaling_message parseMmtpMessages(char* packet, int offset) {
     }
     //std::cout << "fragmentation_indicator is " << MMTPSignalingMessage.fragmentation_indicator << std::endl;
 
+    //std::cout << "MMTPSignalingMessage.fragmentation_indicator: 0x" << MMTPSignalingMessage.fragmentation_indicator << std::endl;
+    //std::cout << "MMTPSignalingMessage.length_extension_flag: 0x" << MMTPSignalingMessage.length_extension_flag << std::endl;
+    //std::cout << "MMTPSignalingMessage.fragment_counter: 0x" << MMTPSignalingMessage.fragment_counter << std::endl;
 
     return MMTPSignalingMessage;
 };
+
 struct _pa_message parsePAMessage(char* packet, int offset) {
     _pa_message PAMessage{};
     PAMessage.message_id = ((((unsigned char*)packet)[offset + 0] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 1];
-    PAMessage.version = (((unsigned char*)packet)[offset + 2]);
+    PAMessage.version = (((unsigned char*)packet)[offset + 2]) & 0xFF;
     PAMessage.length = ((((unsigned char*)packet)[offset + 3] & 0xFF) << 24) |
         ((((unsigned char*)packet)[offset + 4] & 0xFF) << 16) |
         ((((unsigned char*)packet)[offset + 5] & 0xFF) << 8) |
-        ((unsigned char*)packet)[offset + 6];
-    PAMessage.number_of_tables = (((unsigned char*)packet)[offset + 7]);
-    std::cout << std::setw(4) << std::setfill('0') << std::uppercase << std::hex << "PAMessage of message_id  0x" << PAMessage.message_id << std::endl;
-    std::cout << "PAMessage of version  0x" << PAMessage.version << std::endl;
-    std::cout << "PAMessage of length  0x" << PAMessage.length << std::endl;
-
-    std::cout << "PAMessage of number_of_tables  0x" << PAMessage.number_of_tables << std::nouppercase << std::dec << std::endl;
+        ((unsigned char*)packet)[offset + 6] & 0xFF;
+    PAMessage.number_of_tables = (((unsigned char*)packet)[offset + 7]) & 0xFF;
+    //std::cout << std::setw(4) << std::setfill('0') << std::uppercase << std::hex << "PAMessage of message_id  0x" << PAMessage.message_id << std::endl;
+    //std::cout << "PAMessage of version  0x" << PAMessage.version << std::endl;
+    //std::cout << "PAMessage of length  0x" << PAMessage.length << std::endl;
+    //std::cout << "PAMessage of number_of_tables  0x" << PAMessage.number_of_tables << std::nouppercase << std::dec << std::endl;
 
     int offset2 = 8;
     for (int i = 0; i < PAMessage.number_of_tables; i++) {
@@ -436,3 +460,4 @@ void usage() {
     std::cout << "\n\n";
     return;
 }
+

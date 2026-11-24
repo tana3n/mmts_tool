@@ -8,7 +8,7 @@
 #include "tlv.hpp"
 #include "mmts_tool.h"
 #include "mmtp.h"
-
+#include "common.h"
 using namespace std::filesystem;
 
 int main(int argc, char* argv[])
@@ -159,10 +159,11 @@ void parse(struct _args args)
                 if (MmtpHeader.extensionHeaderFlag) {
                     offset2 = offset2 + 4;
                     MmtpExtensionHeader = parseMmtpExtensionHeader(hBuf, offset + offset2);
-                    //offset2 = MmtpHeader.extensionHeaderLength;
                     if (check_scrambling(MmtpExtensionHeader)) {
                         mMTPacketsInfo[MmtpHeader.packetId].scramblingTotal += 1;
                     }
+                    offset2 = offset2 + MmtpHeader.extensionHeaderLength;
+
                 }
                
                 if (check_drop(MmtpHeader, mMTPacketsInfo) == true) {
@@ -173,30 +174,28 @@ void parse(struct _args args)
 
                 mMTPacketsInfo[MmtpHeader.packetId].lastSequenceNumber = MmtpHeader.packetSequenceNumber;
                 mMTPacketsInfo[MmtpHeader.packetId].total += 1;
+
+                //std::cout << "payload offset: " << offset + offset2 << std::endl;
+
                 if ((MmtpHeader.packetId == 0x0000) && (MmtpHeader.payloadType == 0x0002)) {
-                    //std::cout << "payloadSize: 0x" << std::hex << payloadSize << std::dec << std::endl;
-                    //std::cout << "Current: " << std::hex << offset + offset2 + MmtpHeader.extensionHeaderLength << std::dec << std::endl;
 
                     _signaling_message MMTPSignalingMessage{};
-                    MMTPSignalingMessage = parseMmtpMessages(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength);
-                    /*for (int i = 0; i < payloadSize + 5; i++) {
-                        int j = ((unsigned char*)hBuf)[i] & 0xFF;
-                        std::cout << "payload: " << std::setw(2) << std::setfill('0') << std::hex << j << std::dec << std::endl;
-                    }*/
+                    MMTPSignalingMessage = parseMmtpMessages(hBuf, offset + offset2);
+
                     if ((!MMTPSignalingMessage.aggregation_flag) )  {
                         // offsetに+2
-                        _pa_message A =  parsePAMessage(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2);
+                        _pa_message A =  parsePAMessage(hBuf, offset + offset2 + 2);
                         if (A.number_of_tables == 0) {
                             // 0x00の場合は1つだけみたいな
                             // offset + offset2 + MmtpHeader.extensionHeaderLength + 2 に +8することになりそう
             
-                            if (check_single_pa_message_type(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2 + 8) == 0x80) {
-                                int a = parse_plt(hBuf, offset + offset2 + MmtpHeader.extensionHeaderLength + 2 + 8);
+                            if (check_single_pa_message_type(hBuf, offset + offset2  + 2 + 8) == 0x80) {
+                                int a = parse_plt(hBuf, offset + offset2 + 2 + 8);
                                 std::cout << "[PA Message] MMT General Location Info: 0x" << std::hex << a << std::dec << std::endl;
 
                             }
                             else {
-                                int i = hBuf[offset + offset2 + MmtpHeader.extensionHeaderLength + 2 + 8];
+                                int i = hBuf[offset + offset2 + 2 + 8];
                                 std::cout << "PA Message table ID: 0x" << std::hex << i << std::dec << std::endl;
 
                             }
@@ -210,6 +209,31 @@ void parse(struct _args args)
                     
                 }
                 else if ((MmtpHeader.packetId == 0x0001)) {}
+                else if ((MmtpHeader.packetId == 0x8004)) {
+
+                    // 後でPayloadType単位で統合するが一旦このまま書くことにする
+                    _signaling_message MMTPSignalingMessage{};
+                    MMTPSignalingMessage = parseMmtpMessages(hBuf, offset + offset2);
+                    if ((!MMTPSignalingMessage.aggregation_flag)) {
+                        // offsetに+2
+                        _m2_section_message _m2_section_message{};
+                        _m2_section_message = parse_m2_section(hBuf, offset + offset2 + 2 );
+                        std::cout << "_m2_section_message:" << _m2_section_message.message_id << std::endl;
+                        std::cout << "_m2_section_message.table_id:" << _m2_section_message.table_id << std::endl;
+                        // 自局のSDTだけまずはみれるようにしたい。
+                        int offset3 = offset + offset2 + 2 + 13;
+                        parse_mh_sdt(hBuf, offset3);
+                    }
+                    else {
+                        std::cout << "fragment_counter: 0x" << std::hex << MMTPSignalingMessage.fragment_counter << std::dec << std::endl;
+
+                    }
+
+
+                    // ここ自体は結構同じになるPIDがいるはずなので、決め打ちで設定する組と動的に設定する組それぞれキャッチしないとマズい　
+                    // というかここがifよか多分Switchの方が良さそうな……
+                }
+
             }
             
         } else if (packetType == 0xFE) {

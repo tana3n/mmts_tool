@@ -142,6 +142,7 @@
     <ClCompile Include="tlv.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="common.h" />
     <ClInclude Include="mmtp.h" />
     <ClInclude Include="mmts_tool.h" />
     <ClInclude Include="tlv.hpp" />

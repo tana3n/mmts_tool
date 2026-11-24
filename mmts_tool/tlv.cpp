@@ -1,8 +1,10 @@
 #include <cstdint>
-#include "tlv.hpp"
 #include <iostream>
 #include <windows.h>
 #include <vector>
+
+#include "tlv.hpp"
+#include "common.h"
 // TLVパケットの0x1を応答
 int parse_packetType(char* packet) {
 	return ((unsigned char*)packet)[0x1];
@@ -42,32 +44,8 @@ struct _tlvNIT_header parse_TlvNIT(char* packet, int offset) {
 		if (Descriptor_length == 0) { break; } // 本当はCRCを見て跳ねるべき
 
 		if (Descriptor_tag == 0x40) {
-			char* DescriptorName = new char[Descriptor_length];
-			for (i = 0; i < Descriptor_length; i++) {
-				DescriptorName[i] = (((unsigned char*)packet)[offset + i + offset2 + 2]) & 0xFF;
-				//int nn_Descriptor_data = (((unsigned char*)packet)[offset + i + offset2 + 2]) & 0xFF;
-				//DescriptorName[i] = nn_Descriptor_data;
-				//std::cout << std::hex << nn_Descriptor_data << std::dec << std::endl;
+			print_hex_to_utf8(packet, offset + offset2 + 2, Descriptor_length);
 
-			}
-			// ref: http ://yukakumumu.blog.fc2.com/blog-entry-38.html
-
-			std::string out = DescriptorName;
-
-			int sizeU = MultiByteToWideChar(CP_UTF8, 0, out.c_str(), -1, NULL, 0);
-			wchar_t* Unicode= new wchar_t[sizeU];
-			MultiByteToWideChar(CP_UTF8, 0, out.c_str(), -1, Unicode, sizeU);
-
-			int dest_size = WideCharToMultiByte(932, 0, Unicode, -1, NULL, 0, NULL, NULL);
-			char* CP932 = new char[dest_size];
-			WideCharToMultiByte(932, 0, Unicode, -1, CP932, dest_size, NULL, NULL);
-
-			std::string out2 = CP932;
-			std::cout << "[NIT-TLV]0x"<< std::hex << Descriptor_tag << std::dec << ": " << out2.c_str() << std::endl;
-
-			delete[] DescriptorName;
-			delete[] CP932;
-			delete[] Unicode;
 		}
 		else if (Descriptor_tag == 0x41) { // あってるかは不明
 			for (i = 0; i < Descriptor_length; i = i + 3) {

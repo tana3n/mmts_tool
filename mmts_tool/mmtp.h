@@ -2,7 +2,8 @@
 
 int check_single_pa_message_type(char* packet, int offset);
 int parse_plt(char* packet, int offset);
-
+struct _m2_section_message parse_m2_section(char* packet, int offset);
+struct _mh_sdt parse_mh_sdt(char* packet, int offset);
 struct _mmtp_payload {
 
 };
@@ -43,4 +44,19 @@ struct _signaling_message {
 
 struct _plt {
 
+};
+
+struct _m2_section_message {
+	int message_id;
+	int version;
+	int length;
+	int table_id;
+	bool section_syntax_indicator;
+	int section_length;
+    
+};
+
+struct _mh_sdt {
+	int table_id;
+	int descriptors_loop_length;
 };

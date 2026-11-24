@@ -84,28 +84,28 @@ struct _mh_cdt parse_mh_cdt(char* packet, int offset) {
 struct _mh_sdt parse_mh_sdt(char* packet, int offset) {
 	_mh_sdt sdt_header{};
 	sdt_header.table_id = ((((unsigned char*)packet)[offset] & 0xFF) << 8);
-	std::cout << "parse_mh_sdt:" << sdt_header.table_id << std::endl;
+	//std::cout << "parse_mh_sdt:" << sdt_header.table_id << std::endl;
 	sdt_header.section_length = (((((unsigned char*)packet)[offset + 1]) & 0xF) << 8) | ((unsigned char*)packet)[offset + 2];
-	std::cout << "parse_mh_sdt section length:" << sdt_header.section_length << std::endl;
+	//std::cout << "parse_mh_sdt section length:" << sdt_header.section_length << std::endl;
 	sdt_header.tlv_stream_id = (((((unsigned char*)packet)[offset + 3]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + 4];
-	std::cout << "parse_mh_sdt sdt_header.tlv_stream_id:" << sdt_header.tlv_stream_id << std::endl;
+	//std::cout << "parse_mh_sdt sdt_header.tlv_stream_id:" << sdt_header.tlv_stream_id << std::endl;
 
 	sdt_header.original_network_id = ((((unsigned char*)packet)[offset + 8] & 0xFF) << 8) | ((unsigned char*)packet)[offset + 9];
 
-	std::cout << "parse_mh_sdt original_network_id:" << sdt_header.original_network_id << std::endl;
+	//std::cout << "parse_mh_sdt original_network_id:" << sdt_header.original_network_id << std::endl;
 	//dump_hex(packet, offset + 13, sdt_header.section_length);
 
 	int offset2 = 11;
 	int sid = (((((unsigned char*)packet)[offset + offset2]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 1];
-	std::cout << "parse_mh_sdt sid:" << sid << std::endl;
+	//std::cout << "parse_mh_sdt sid:" << sid << std::endl;
 
 	int descriptors_loop_length = (((((unsigned char*)packet)[offset + offset2 + 3]) & 0xF) << 8) | ((unsigned char*)packet)[offset + offset2 + 4];
-	std::cout << "parse_mh_sdt descriptors_loop_length:" << descriptors_loop_length << std::endl;
+	//std::cout << "parse_mh_sdt descriptors_loop_length:" << descriptors_loop_length << std::endl;
 
 	int descriptor_tag = (((((unsigned char*)packet)[offset + offset2 + 5]) & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 6];
-	std::cout << "parse_mh_sdt descriptor_tag:" << std::hex << descriptor_tag << std::dec << std::endl;
+	//std::cout << "parse_mh_sdt descriptor_tag:" << std::hex << descriptor_tag << std::dec << std::endl;
 	int descriptor_length = ((unsigned char*)packet)[offset + offset2 + 7];
-	std::cout << "parse_mh_sdt descriptor_length:" << std::hex << descriptor_length << std::dec << std::endl;
+	//std::cout << "parse_mh_sdt descriptor_length:" << std::hex << descriptor_length << std::dec << std::endl;
 
 	if (descriptor_tag == 0x8019) { // MH-Service_Descriptor
 		_mh_service_descriptor serviceDescriptor{};
@@ -115,10 +115,10 @@ struct _mh_sdt parse_mh_sdt(char* packet, int offset) {
 		serviceDescriptor.service_provider_name_length = ((unsigned char*)packet)[offset + offset2 + 9];
 		serviceDescriptor.service_name_length = ((unsigned char*)packet)[offset + offset2 + 10 + serviceDescriptor.service_provider_name_length];
 
-		print_hex_to_utf8(packet, offset + offset2 + 10, serviceDescriptor.service_provider_name_length);
-		dump_hex(packet, offset + offset2 + 10, serviceDescriptor.service_provider_name_length);
-		print_hex_to_utf8(packet, offset + offset2 + 11 + serviceDescriptor.service_provider_name_length, serviceDescriptor.service_name_length);
-		dump_hex(packet, offset + offset2 + 11 + serviceDescriptor.service_provider_name_length, serviceDescriptor.service_name_length);
+		//print_hex_to_utf8(packet, offset + offset2 + 10, serviceDescriptor.service_provider_name_length);
+		//dump_hex(packet, offset + offset2 + 10, serviceDescriptor.service_provider_name_length);
+		//print_hex_to_utf8(packet, offset + offset2 + 11 + serviceDescriptor.service_provider_name_length, serviceDescriptor.service_name_length);
+		//dump_hex(packet, offset + offset2 + 11 + serviceDescriptor.service_provider_name_length, serviceDescriptor.service_name_length);
 		sdt_header.mh_service_descriptor = serviceDescriptor;
 
 	}

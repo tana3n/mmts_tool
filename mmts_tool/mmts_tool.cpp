@@ -26,6 +26,13 @@ int main(int argc, char* argv[])
     std::cout << argv[1] << "\n\n";
     struct _args Args {};
     Args.inputFileName = argv[1];
+    if (argv[2] == "--debug") {
+        Args.debug = true;
+    }
+    else {
+        Args.debug = false;
+    }
+
     //Args.outputFileName = "D:\output.mmts";
     Args.selectMode = false;
     //Args.selectedTLVType = 0xFE;
@@ -192,20 +199,20 @@ void parse(struct _args args)
             
                                 if (check_single_pa_message_type(hBuf, offset + offset2  + 2 + 8) == 0x80) {
                                     int a = parse_plt(hBuf, offset + offset2 + 2 + 8);
-                                    std::cout << "[PA Message] MMT General Location Info: 0x" << std::hex << a << std::dec << std::endl;
+                                    //std::cout << "[PA Message] MMT General Location Info: 0x" << std::hex << a << std::dec << std::endl;
 
                                 }
                                 else {
                                     int i = hBuf[offset + offset2 + 2 + 8];
-                                    std::cout << "PA Message table ID: 0x" << std::hex << i << std::dec << std::endl;
+                                    //std::cout << "PA Message table ID: 0x" << std::hex << i << std::dec << std::endl;
 
                                 }
                             }
                         }
                         else if ((MmtpHeader.packetId == 0x8004)) {
                             _m2_section_message _m2_section_message = parse_m2_section(hBuf, offset + offset2 + 2);
-                            std::cout << "_m2_section_message: 0x" << std::hex << _m2_section_message.message_id << std::endl;
-                            std::cout << "_m2_section_message.table_id:" << _m2_section_message.table_id << std::dec << std::endl;
+                            //std::cout << "_m2_section_message: 0x" << std::hex << _m2_section_message.message_id << std::endl;
+                            //std::cout << "_m2_section_message.table_id:" << _m2_section_message.table_id << std::dec << std::endl;
                             // 自局のSDTだけまずはみれるようにしたい。
                             int offset3 = offset + offset2 + 2 + 12; 
                             //本当にM2 Sectionが12バイトあるの？MH-SDTから見ると7バイトぐらい足りてないように見えるので、多分TableIDまでしかないのでは？
@@ -222,10 +229,10 @@ void parse(struct _args args)
             
         } else if (packetType == 0xFE) {
             if (hBuf[4] == 0x40) { // TLV-NIT
-                std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
+                //std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
                 parse_TlvNIT(hBuf, 4);
             } else             if (hBuf[4] == 0x41) { // TLV-NIT
-                std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
+                //std::cout << " TLV-NIT TLV PacketType: 0x" << packetType << "\n" << std::endl;
                 //parse_TlvNIT(hBuf, 4);
             }
             else if (hBuf[4] == 0xFE) { //AMT
@@ -251,7 +258,7 @@ void parse(struct _args args)
         //    std::cout << "debug progress:" << current  << " / " << size  << " / " << payloadSize <<" = " << args.outputSize<<   std::endl;
 
         //}
-        if (tlvPacketTotalCount % 10000 == 0) {
+        if (tlvPacketTotalCount % 1000 == 0) {
             std::cout <<  "progress:" << current   << " / " << size  << " Bytes." << "\r";
         }
 

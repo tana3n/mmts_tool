@@ -16,6 +16,7 @@ struct _args {
 	bool selectMode;
 	int selectedTLVType;
 	int outputSize;
+	bool debug;
 
 };
 

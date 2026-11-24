@@ -56,7 +56,27 @@ struct _m2_section_message {
     
 };
 
-struct _mh_sdt {
+struct _mh_cdt {
 	int table_id;
+	int data_type;
 	int descriptors_loop_length;
 };
+
+struct _mh_service_descriptor {
+	int descriptor_tag;
+	int descriptor_length;
+	int service_type;
+	int service_provider_name_length;
+	std::string service_provider_name;
+	int service_name_length;
+	std::string service_name;
+};
+
+struct _mh_sdt {
+	int table_id;
+	int section_length;
+	int tlv_stream_id;
+	int original_network_id;
+	_mh_service_descriptor mh_service_descriptor;
+};
+

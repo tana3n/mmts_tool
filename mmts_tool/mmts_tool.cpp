@@ -204,11 +204,12 @@ void parse(struct _args args)
                         }
                         else if ((MmtpHeader.packetId == 0x8004)) {
                             _m2_section_message _m2_section_message = parse_m2_section(hBuf, offset + offset2 + 2);
-                            std::cout << "_m2_section_message:" << _m2_section_message.message_id << std::endl;
-                            std::cout << "_m2_section_message.table_id:" << _m2_section_message.table_id << std::endl;
+                            std::cout << "_m2_section_message: 0x" << std::hex << _m2_section_message.message_id << std::endl;
+                            std::cout << "_m2_section_message.table_id:" << _m2_section_message.table_id << std::dec << std::endl;
                             // 自局のSDTだけまずはみれるようにしたい。
-                            int offset3 = offset + offset2 + 2 + 13;
-                            parse_mh_sdt(hBuf, offset3);
+                            int offset3 = offset + offset2 + 2 + 12; 
+                            //本当にM2 Sectionが12バイトあるの？MH-SDTから見ると7バイトぐらい足りてないように見えるので、多分TableIDまでしかないのでは？
+                            parse_mh_sdt(hBuf, offset + offset2 + 2 + 5);
                         }
                     }
                     else {

@@ -21,7 +21,7 @@ void dump_hex(char* packet, int length) {
 };
 
 void dump_hex(char* packet, int offset, int length) {
-    for (int i = offset; i < length + 4; i++) {
+    for (int i = offset; i < length + offset; i++) {
         int j = ((unsigned char*)packet)[i] & 0xFF;
         if (i-offset % 16 == 0) {
             std::cout << std::endl;
@@ -41,7 +41,7 @@ std::string print_hex_to_utf8(char* packet, int offset,  int length){
     for (int i = 0; i < length; i++) {
         DescriptorName[i] = (((unsigned char*)packet)[offset + i]) & 0xFF;
     }
-    // ref: http ://yukakumumu.blog.fc2.com/blog-entry-38.html
+    // ref: http://yukakumumu.blog.fc2.com/blog-entry-38.html
 
     std::string out = DescriptorName;
 

@@ -86,6 +86,7 @@ void parse(struct _args args)
 
     struct _compressedIpPacket compressedIpHeader {};
 
+    int PAMessagePacketId = 0;
     while (current < size) {
         source.seekg(current);
         // 終端のバッファ処理
@@ -191,20 +192,43 @@ void parse(struct _args args)
 
                     if ((!MMTPSignalingMessage.aggregation_flag) )  {
                         // offsetに+2
-                        if (MmtpHeader.packetId == 0x0000) {
+                        if (MmtpHeader.packetId == 0x0000  ) {
                             _pa_message A =  parsePAMessage(hBuf, offset + offset2 + 2);
                             if (A.number_of_tables == 0) {
                                 // 0x00の場合は1つだけみたいな
                                 // offset + offset2 + MmtpHeader.extensionHeaderLength + 2 に +8することになりそう
             
                                 if (check_single_pa_message_type(hBuf, offset + offset2  + 2 + 8) == 0x80) {
-                                    int a = parse_plt(hBuf, offset + offset2 + 2 + 8);
-                                    //std::cout << "[PA Message] MMT General Location Info: 0x" << std::hex << a << std::dec << std::endl;
+                                    PAMessagePacketId = parse_plt(hBuf, offset + offset2 + 2 + 8);
+                                    //std::cout << "[PA Message] MMT General Location Info: 0x" << std::hex << PAMessagePacketId << std::dec << std::endl;
 
                                 }
                                 else {
                                     int i = hBuf[offset + offset2 + 2 + 8];
                                     //std::cout << "PA Message table ID: 0x" << std::hex << i << std::dec << std::endl;
+
+                                }
+                            }
+                        }
+                        else if (MmtpHeader.packetId == PAMessagePacketId) {
+                            _pa_message A = parsePAMessage(hBuf, offset + offset2 + 2);
+                            //std::cout << "[PA Message] MmtpHeader.packetId: 0x" << std::hex << MmtpHeader.packetId << std::dec << std::endl;
+
+                            if (A.number_of_tables == 0) {
+                                // 0x00の場合は1つだけみたいな
+                                // offset + offset2 + MmtpHeader.extensionHeaderLength + 2 に +8することになりそう
+                                //dump_hex(hBuf, payloadSize);
+                                if (check_single_pa_message_type(hBuf, offset + offset2 + 2 + 8) == 0x20) {
+                                    std::cout << "[PA Message] Complete MP Table*1" << std::endl;
+                                    parse_mpt(hBuf, offset + offset2 + 2 + 8);
+                                }
+                                else if (check_single_pa_message_type(hBuf, offset + offset2 + 2 + 8) == 0x80) {
+                                    std::cout << "[PA Message] PLT" << std::endl;
+
+                                }
+                                else {
+                                    int i = check_single_pa_message_type(hBuf, offset + offset2 + 2 + 8);
+                                    std::cout << "PA Message table ID: 0x" << std::hex << i << std::dec << std::endl;
 
                                 }
                             }
@@ -285,7 +309,7 @@ void parse(struct _args args)
 
         }
     }
-    // 本
+
     std::cout << "\nCompressed IP Header MMT Packets"  << std::endl;
 
     for (int i = 0; i < 0xFFFF; i++) {
@@ -393,11 +417,11 @@ struct _mmtpExtensionHeader parseMmtpExtensionHeader(char* packet, int offset) {
     return MMTPExtensionHeader;
 }
 
-struct _mmtp_payload parseMmtpPayload(char* packet, int offset, int payloadType) {
-    if (payloadType == 0x00) {
-
-    }
-};
+//struct _mmtp_payload parseMmtpPayload(char* packet, int offset, int payloadType) {
+//    if (payloadType == 0x00) {
+//
+//    }
+//};
 // 事実上Signaling Message(payload_type == 0x02)専用と化してる
 struct _signaling_message parseMmtpMessages(char* packet, int offset) {
     _signaling_message MMTPSignalingMessage{};

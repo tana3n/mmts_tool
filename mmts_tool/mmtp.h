@@ -2,6 +2,7 @@
 
 int check_single_pa_message_type(char* packet, int offset);
 int parse_plt(char* packet, int offset);
+struct _mmt_package_table parse_mpt(char* packet, int offset);
 struct _m2_section_message parse_m2_section(char* packet, int offset);
 struct _mh_sdt parse_mh_sdt(char* packet, int offset);
 struct _mmtp_payload {
@@ -29,9 +30,17 @@ struct _pa_message {
 	_pa_table pa_table[0xFF];
 };
 
-struct _table_Mpt{
-
+struct _mmt_package_table {
+	int table_id;
+	int length;
+	int mpt_mode;
+	int mmt_package_id_length;
+	int mpt_descriptors_length;
+	// descriptor;
+	int number_of_assets;
+    // struct assets;
 };
+
 
 struct _table_Plt{};
 
@@ -80,3 +89,6 @@ struct _mh_sdt {
 	_mh_service_descriptor mh_service_descriptor;
 };
 
+struct _mh_sdt_infomation {
+
+};

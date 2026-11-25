@@ -87,6 +87,6 @@ struct _MmtPacketIdInformation {
 	int scramblingTotal = 0;
 	int errorTotal = 0;
 	int lastSequenceNumber = -1;
-	std::string packetIdName;
+	std::string hr_packet_id_asset_type_name;
 
 };

@@ -2,9 +2,12 @@
 
 int check_single_pa_message_type(char* packet, int offset);
 int parse_plt(char* packet, int offset);
-struct _mmt_package_table parse_mpt(char* packet, int offset);
+struct _packet_id_info* parse_mpt(_packet_id_info* packet_id_info, char* packet, int offset);
 struct _m2_section_message parse_m2_section(char* packet, int offset);
 struct _mh_sdt parse_mh_sdt(char* packet, int offset);
+struct _MmtPacketIdInformation* set_hr_asset_type_name(_packet_id_info* packet_id_info, _MmtPacketIdInformation* mMTPacketsInfo);
+
+
 struct _mmtp_payload {
 
 };
@@ -91,4 +94,10 @@ struct _mh_sdt {
 
 struct _mh_sdt_infomation {
 
+};
+
+// Drops‚Æ‚©Scrambles‚Æ‚©‚à‚±‚Á‚¿‚Ì•û‚ª—Ç‚¢‚©‚à‚µ‚ê‚È‚¢
+struct _packet_id_info {
+	std::string hr_packet_id_asset_type_name;
+	int asset_type;
 };

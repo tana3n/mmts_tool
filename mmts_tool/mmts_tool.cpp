@@ -86,6 +86,8 @@ void parse(struct _args args)
 
     struct _compressedIpPacket compressedIpHeader {};
 
+    struct _packet_id_info* packet_id_info = new _packet_id_info[0xFFFF]{};
+
     int PAMessagePacketId = 0;
     while (current < size) {
         source.seekg(current);
@@ -219,8 +221,9 @@ void parse(struct _args args)
                                 // offset + offset2 + MmtpHeader.extensionHeaderLength + 2 に +8することになりそう
                                 //dump_hex(hBuf, payloadSize);
                                 if (check_single_pa_message_type(hBuf, offset + offset2 + 2 + 8) == 0x20) {
-                                    std::cout << "[PA Message] Complete MP Table*1" << std::endl;
-                                    parse_mpt(hBuf, offset + offset2 + 2 + 8);
+                                    //std::cout << "[PA Message] Complete MP Table*1" << std::endl;
+                                    packet_id_info = parse_mpt(packet_id_info, hBuf, offset + offset2 + 2 + 8);
+
                                 }
                                 else if (check_single_pa_message_type(hBuf, offset + offset2 + 2 + 8) == 0x80) {
                                     std::cout << "[PA Message] PLT" << std::endl;
@@ -312,11 +315,14 @@ void parse(struct _args args)
 
     std::cout << "\nCompressed IP Header MMT Packets"  << std::endl;
 
+    mMTPacketsInfo = set_hr_asset_type_name(packet_id_info, mMTPacketsInfo);
+    mMTPacketsInfo[PAMessagePacketId].hr_packet_id_asset_type_name = "PA Message";
     for (int i = 0; i < 0xFFFF; i++) {
         if (mMTPacketsInfo[i].total != 0) {
             std::cout << "\tPacketId: 0x" << std::setw(4) << std::setfill('0') << std::uppercase << std::hex <<  i << "\tTotal = " << std::nouppercase << std::dec << mMTPacketsInfo[i].total << " packets" <<
             "\tDrop = " << mMTPacketsInfo[i].dropTotal  <<
-            "\tScramble = " << mMTPacketsInfo[i].scramblingTotal << std::endl;
+            "\tScramble = " << mMTPacketsInfo[i].scramblingTotal <<
+                "\tasset_type: " << mMTPacketsInfo[i].hr_packet_id_asset_type_name << std::endl;
 
         }
     }
@@ -466,7 +472,7 @@ struct _pa_message parsePAMessage(char* packet, int offset) {
         PAMessage.pa_table[i].table_version = (((unsigned char*)packet)[offset + offset2 + 1]);
         PAMessage.pa_table[i].table_length = ((((unsigned char*)packet)[offset + offset2 + 2] & 0xFF) << 8) | ((unsigned char*)packet)[offset + offset2 + 3];
         offset2 = offset2 + 4;
-        std::cout << "PAMessage of table  0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << PAMessage.pa_table[i].table_id << std::endl;
+        //std::cout << "PAMessage of table  0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << PAMessage.pa_table[i].table_id << std::endl;
 
     }
     //for (int i = 0; i < PAMessage.number_of_tables; i++) {
